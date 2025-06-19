@@ -255,23 +255,24 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
       style={{ height: '400px' }}
       bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto', padding: '16px' }}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space direction="vertical" style={{ width: '100%' }} size="small">
         
         {/* 音乐来源选择 */}
         {!audioFile && (
           <div>
-            <Text strong style={{ marginBottom: '12px', display: 'block' }}>音乐来源</Text>
+            <Text strong style={{ marginBottom: '8px', display: 'block', fontSize: '12px' }}>音乐来源</Text>
             <Radio.Group 
               value={musicSource} 
               onChange={(e) => setMusicSource(e.target.value)}
               style={{ width: '100%' }}
+              size="small"
             >
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space direction="vertical" style={{ width: '100%' }} size="small">
                 <Radio value="preset">
-                  <StarOutlined style={{ color: '#faad14' }} /> 预设音乐库
+                  <StarOutlined style={{ color: '#faad14', fontSize: '12px' }} /> 预设音乐库
                 </Radio>
                 <Radio value="upload">
-                  <UploadOutlined style={{ color: '#52c41a' }} /> 上传自定义音乐
+                  <UploadOutlined style={{ color: '#52c41a', fontSize: '12px' }} /> 上传自定义音乐
                 </Radio>
               </Space>
             </Radio.Group>
@@ -281,21 +282,21 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
         {/* 预设音乐选择 */}
         {!audioFile && musicSource === 'preset' && (
           <div>
-            <Text strong style={{ marginBottom: '8px', display: 'block' }}>选择预设音乐</Text>
+            <Text strong style={{ marginBottom: '6px', display: 'block', fontSize: '12px' }}>选择预设音乐</Text>
             <Select
               placeholder="请选择一首背景音乐"
               style={{ width: '100%' }}
               onChange={handlePresetSelect}
-              size="large"
+              size="middle"
             >
               {presetMusic.map(music => (
                 <Option key={music.id} value={music.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontWeight: '500' }}>{music.name}</div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>{music.description}</div>
+                      <div style={{ fontWeight: '500', fontSize: '13px' }}>{music.name}</div>
+                      <div style={{ fontSize: '11px', color: '#666' }}>{music.description}</div>
                     </div>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                    <Text type="secondary" style={{ fontSize: '11px' }}>
                       {formatDuration(music.duration)}
                     </Text>
                   </div>
@@ -308,15 +309,15 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
         {/* 文件上传 */}
         {!audioFile && musicSource === 'upload' && (
           <div>
-            <Text strong style={{ marginBottom: '8px', display: 'block' }}>上传音频文件</Text>
+            <Text strong style={{ marginBottom: '6px', display: 'block', fontSize: '12px' }}>上传音频文件</Text>
             <Button
               type="dashed"
               icon={<UploadOutlined />}
               onClick={handleUploadClick}
               style={{ 
                 width: '100%', 
-                height: '80px', 
-                fontSize: '16px',
+                height: '60px', 
+                fontSize: '14px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -324,8 +325,8 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
               }}
             >
               <div>点击选择音频文件</div>
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                支持 MP3、WAV、OGG、M4A、AAC 格式
+              <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                支持 MP3、WAV、OGG、M4A、AAC
               </div>
             </Button>
             <input
@@ -342,27 +343,28 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
         {audioFile && (
           <div style={{ 
             border: '1px solid #d9d9d9', 
-            borderRadius: '8px', 
-            padding: '16px',
+            borderRadius: '6px', 
+            padding: '12px',
             background: '#fafafa'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <div>
-                <Text strong>{audioFile.name}</Text>
+                <Text strong style={{ fontSize: '13px' }}>{audioFile.name}</Text>
                 <br />
-                <Text type="secondary" style={{ fontSize: '12px' }}>
+                <Text type="secondary" style={{ fontSize: '11px' }}>
                   {audioFile.type === 'preset' 
                     ? `预设音乐 • ${formatDuration(audioFile.duration)}`
                     : `自定义文件 • ${formatFileSize(audioFile.size)}`
                   }
                 </Text>
               </div>
-              <Space>
+              <Space size="small">
                 <Button
                   type="primary"
                   icon={isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
                   onClick={togglePlay}
                   size="small"
+                  style={{ fontSize: '11px' }}
                 >
                   {isPlaying ? '暂停' : '播放'}
                 </Button>
@@ -371,10 +373,53 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
                   icon={<DeleteOutlined />}
                   onClick={handleRemoveAudio}
                   size="small"
+                  style={{ fontSize: '11px' }}
                 >
                   删除
                 </Button>
               </Space>
+            </div>
+            
+            {/* 音量控制 - 紧凑布局 */}
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <Text strong style={{ fontSize: '12px' }}>音量</Text>
+                <Text type="secondary" style={{ fontSize: '11px' }}>{volume}%</Text>
+              </div>
+              <Slider
+                min={0}
+                max={100}
+                value={volume}
+                onChange={handleVolumeChange}
+                marks={{
+                  0: { style: { fontSize: '10px' }, label: '0' },
+                  100: { style: { fontSize: '10px' }, label: '100' }
+                }}
+                style={{ margin: '4px 0' }}
+              />
+            </div>
+
+            {/* 音频效果 - 横向布局 */}
+            <div>
+              <Text strong style={{ fontSize: '12px', marginBottom: '6px', display: 'block' }}>音频效果</Text>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <Text style={{ fontSize: '11px', marginRight: '6px' }}>淡入</Text>
+                  <Switch
+                    size="small"
+                    checked={fadeIn}
+                    onChange={(checked) => handleFadeChange('fadeIn', checked)}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <Text style={{ fontSize: '11px', marginRight: '6px' }}>淡出</Text>
+                  <Switch
+                    size="small"
+                    checked={fadeOut}
+                    onChange={(checked) => handleFadeChange('fadeOut', checked)}
+                  />
+                </div>
+              </div>
             </div>
             
             {/* 隐藏的音频元素 */}
@@ -389,64 +434,20 @@ const AudioPanel = ({ audioFile, onAudioUpload }) => {
           </div>
         )}
 
-        {/* 音频设置 */}
+        {/* 简化的提示信息 */}
         {audioFile && (
-          <>
-            <Divider style={{ margin: '12px 0' }} />
-            
-            {/* 音量控制 */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <Text strong>音量</Text>
-                <Text type="secondary">{volume}%</Text>
-              </div>
-              <Slider
-                min={0}
-                max={100}
-                value={volume}
-                onChange={handleVolumeChange}
-                marks={{
-                  0: '静音',
-                  50: '50%',
-                  100: '100%'
-                }}
-              />
-            </div>
-
-            {/* 淡入淡出设置 */}
-            <div>
-              <Text strong style={{ marginBottom: '12px', display: 'block' }}>音频效果</Text>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text>淡入效果</Text>
-                  <Switch
-                    checked={fadeIn}
-                    onChange={(checked) => handleFadeChange('fadeIn', checked)}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text>淡出效果</Text>
-                  <Switch
-                    checked={fadeOut}
-                    onChange={(checked) => handleFadeChange('fadeOut', checked)}
-                  />
-                </div>
-              </Space>
-            </div>
-
-            {/* 提示信息 */}
-            <div style={{ 
-              background: '#e6f7ff', 
-              border: '1px solid #91d5ff',
-              borderRadius: '6px',
-              padding: '12px'
-            }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                💡 背景音乐会自动循环播放，直到相册播放结束。建议选择轻柔的音乐以配合照片展示。
-              </Text>
-            </div>
-          </>
+          <div style={{ 
+            background: '#e6f7ff', 
+            border: '1px solid #91d5ff',
+            borderRadius: '4px',
+            padding: '8px'
+          }}>
+            <Text type="secondary" style={{ fontSize: '11px' }}>
+              💡 背景音乐会自动循环播放至相册结束
+            </Text>
+          </div>
         )}
+
       </Space>
     </Card>
   )

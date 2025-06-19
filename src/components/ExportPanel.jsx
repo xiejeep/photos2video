@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Space, Typography, Select, Radio, Statistic, Alert, Divider, Tag, Modal } from 'antd'
+import { Card, Button, Space, Typography, Select, Radio, Statistic, Alert, Divider, Tag, Modal, Row, Col } from 'antd'
 import { 
   ExportOutlined, 
   DownloadOutlined, 
@@ -143,206 +143,9 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
   }
 
   return (
-    <Card
-      title={
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <ExportOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-          <span>导出设置</span>
-        </div>
-      }
-      style={{ height: '600px' }}
-      bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto' }}
-    >
-      <Space direction="vertical" style={{ width: '100%' }} size="large">
-
-        {/* 项目信息 */}
-        <div style={{ 
-          background: '#f0f8ff', 
-          border: '1px solid #d4edda',
-          borderRadius: '8px',
-          padding: '16px'
-        }}>
-          <Space size="large">
-            <Statistic
-              title="选中照片"
-              value={selectedCount}
-              suffix="张"
-              valueStyle={{ color: '#1890ff' }}
-            />
-            <Statistic
-              title="预计时长"
-              value={(selectedCount * 3).toFixed(1)}
-              suffix="秒"
-              valueStyle={{ color: '#52c41a' }}
-            />
-            <Statistic
-              title="背景音乐"
-              value={hasAudio ? '已添加' : '未添加'}
-              valueStyle={{ color: hasAudio ? '#52c41a' : '#8c8c8c' }}
-              prefix={hasAudio ? <CheckCircleOutlined /> : null}
-            />
-          </Space>
-        </div>
-
-        <Divider />
-
-        {/* 格式选择 */}
-        <div>
-          <Title level={5}>输出格式</Title>
-          <Radio.Group
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            style={{ width: '100%' }}
-          >
-            <Space direction="vertical" style={{ width: '100%' }}>
-              {formatOptions.map(option => (
-                <Radio 
-                  key={option.value} 
-                  value={option.value}
-                  style={{ width: '100%' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                    <span>{option.label}</span>
-                    <Space>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        文件大小: {option.size}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        兼容性: {option.compatibility}
-                      </Text>
-                    </Space>
-                  </div>
-                </Radio>
-              ))}
-            </Space>
-          </Radio.Group>
-        </div>
-
-        {/* 比例信息显示 */}
-        <div>
-          <Title level={5}>视频比例</Title>
-          <div style={{ 
-            background: '#f0f8ff', 
-            border: '1px solid #d4edda',
-            borderRadius: '8px',
-            padding: '12px'
-          }}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '16px', fontWeight: '500' }}>
-                  {aspectRatioOptions.find(opt => opt.value === aspectRatio)?.label || aspectRatio}
-                </span>
-                <Tag color="blue" style={{ fontSize: '12px' }}>
-                  {aspectRatio}
-                </Tag>
-              </div>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {aspectRatioOptions.find(opt => opt.value === aspectRatio)?.desc || '自定义比例'}
-              </Text>
-              <Text type="secondary" style={{ fontSize: '11px', fontStyle: 'italic' }}>
-                * 比例已在预览步骤中设置，如需修改请返回上一步
-              </Text>
-            </Space>
-          </div>
-        </div>
-
-        {/* 质量设置 */}
-        <div>
-          <Title level={5}>视频质量</Title>
-          <Select
-            value={quality}
-            onChange={setQuality}
-            style={{ width: '100%' }}
-          >
-            {qualityOptions.map(option => {
-              const resolution = getResolutionByAspectRatio(option.value, aspectRatio)
-              return (
-                <Select.Option key={option.value} value={option.value}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{option.label}</span>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {resolution.width}×{resolution.height} | {option.bitrate}
-                    </Text>
-                  </div>
-                </Select.Option>
-              )
-            })}
-          </Select>
-        </div>
-
-        {/* 帧率设置 */}
-        <div>
-          <Title level={5}>帧率</Title>
-          <Radio.Group
-            value={frameRate}
-            onChange={(e) => setFrameRate(e.target.value)}
-          >
-            {frameRateOptions.map(option => (
-              <Radio.Button key={option.value} value={option.value}>
-                {option.label}
-              </Radio.Button>
-            ))}
-          </Radio.Group>
-        </div>
-
-        <Divider />
-
-        {/* 预计信息 */}
-        <div style={{ 
-          background: '#fafafa', 
-          border: '1px solid #e8e8e8',
-          borderRadius: '6px',
-          padding: '12px'
-        }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text>预计文件大小:</Text>
-              <Text strong>{getEstimatedFileSize()} MB</Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text>预计处理时间:</Text>
-              <Text strong>{getEstimatedTime()}</Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text>输出分辨率:</Text>
-              <Text strong>{getCurrentQuality()?.width}×{getCurrentQuality()?.height}</Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Text>视频比例:</Text>
-              <Text strong>{aspectRatio}</Text>
-            </div>
-          </Space>
-        </div>
-
-        {/* 提示信息 */}
-        <Alert
-          message="导出提示"
-          description={
-            <ul style={{ margin: 0, paddingLeft: '20px' }}>
-              <li>处理过程中请不要关闭浏览器窗口</li>
-              <li>高质量设置需要更长的处理时间</li>
-              <li>建议在处理大量照片时选择较低质量进行测试</li>
-              {!hasAudio && <li>可以返回上一步添加背景音乐</li>}
-            </ul>
-          }
-          type="info"
-          showIcon
-        />
-
-        {/* 诊断工具 */}
-        <div>
-          <Button
-            type="default"
-            size="small"
-            icon={<BugOutlined />}
-            onClick={handleShowDiagnostic}
-            style={{ width: '100%', marginBottom: '12px' }}
-          >
-            检查编解码器支持（解决MP4问题）
-          </Button>
-        </div>
-
-        {/* 导出按钮 */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
+      {/* 顶部导出按钮 - 置顶显示 */}
+      <div>
         <Button
           type="primary"
           size="large"
@@ -350,43 +153,240 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
           onClick={handleExport}
           disabled={selectedCount === 0}
           block
-          style={{ height: '48px', fontSize: '16px' }}
+          style={{ 
+            height: '56px', 
+            fontSize: '16px',
+            background: '#1890ff',
+            border: 'none',
+            outline: 'none',
+            fontWeight: '600',
+            boxShadow: '0 4px 12px rgba(24, 144, 255, 0.3)'
+          }}
         >
-          {selectedCount === 0 ? '请先选择照片' : `开始生成电子相册 (${selectedCount}张照片)`}
+          {selectedCount === 0 ? '请先选择照片' : `🎬 开始生成电子相册 (${selectedCount}张照片)`}
         </Button>
+      </div>
 
-        {/* 快速预设 */}
-        <div>
-          <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
-            质量预设: 
-          </Text>
-          <Space wrap>
-            <Button 
-              type="link" 
-              size="small" 
-              onClick={() => {setQuality('1080p'); setFormat('mp4'); setFrameRate(30)}}
-            >
-              标准质量
-            </Button>
-            <Button 
-              type="link" 
-              size="small"
-              onClick={() => {setQuality('720p'); setFormat('mp4'); setFrameRate(24)}}
-            >
-              快速导出
-            </Button>
-            <Button 
-              type="link" 
-              size="small"
-              onClick={() => {setQuality('2160p'); setFormat('mp4'); setFrameRate(30)}}
-            >
-              最佳质量
-            </Button>
-          </Space>
-        </div>
+      {/* 主要设置区域 */}
+      <Card
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <ExportOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+            <span>导出设置</span>
+          </div>
+        }
+        size="small"
+        style={{ flex: 1 }}
+        bodyStyle={{ padding: '16px' }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
 
-      </Space>
-      
+          {/* 项目信息 - 更紧凑的展示 */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title="选中照片"
+                value={selectedCount}
+                suffix="张"
+                valueStyle={{ color: '#1890ff', fontSize: '18px' }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="预计时长"
+                value={(selectedCount * 3).toFixed(1)}
+                suffix="秒"
+                valueStyle={{ color: '#52c41a', fontSize: '18px' }}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="背景音乐"
+                value={hasAudio ? '已添加' : '未添加'}
+                valueStyle={{ color: hasAudio ? '#52c41a' : '#8c8c8c', fontSize: '14px' }}
+                prefix={hasAudio ? <CheckCircleOutlined /> : null}
+              />
+            </Col>
+          </Row>
+
+          <Divider style={{ margin: '12px 0' }} />
+
+          {/* 主要设置 - 使用更紧凑的布局 */}
+          <Row gutter={[16, 16]}>
+            <Col span={12}>
+              <div>
+                <Title level={5} style={{ marginBottom: '8px' }}>输出格式</Title>
+                <Select
+                  value={format}
+                  onChange={setFormat}
+                  style={{ width: '100%' }}
+                  size="large"
+                >
+                  {formatOptions.map(option => (
+                    <Select.Option key={option.value} value={option.value}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{option.label}</span>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>
+                          {option.compatibility}
+                        </Text>
+                      </div>
+                    </Select.Option>
+                  ))}
+                </Select>
+              </div>
+            </Col>
+            <Col span={12}>
+              <div>
+                <Title level={5} style={{ marginBottom: '8px' }}>视频质量</Title>
+                <Select
+                  value={quality}
+                  onChange={setQuality}
+                  style={{ width: '100%' }}
+                  size="large"
+                >
+                  {qualityOptions.map(option => {
+                    const resolution = getResolutionByAspectRatio(option.value, aspectRatio)
+                    return (
+                      <Select.Option key={option.value} value={option.value}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{option.label}</span>
+                          <Text type="secondary" style={{ fontSize: '11px' }}>
+                            {resolution.width}×{resolution.height}
+                          </Text>
+                        </div>
+                      </Select.Option>
+                    )
+                  })}
+                </Select>
+              </div>
+            </Col>
+          </Row>
+
+          {/* 比例和帧率 */}
+          <Row gutter={[16, 16]}>
+            <Col span={12}>
+              <div>
+                <Title level={5} style={{ marginBottom: '8px' }}>视频比例</Title>
+                <div style={{ 
+                  background: '#f0f8ff', 
+                  border: '1px solid #d4edda',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '500' }}>
+                      {aspectRatioOptions.find(opt => opt.value === aspectRatio)?.label || aspectRatio}
+                    </span>
+                    <Tag color="blue" size="small">
+                      {aspectRatio}
+                    </Tag>
+                  </div>
+                  <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                    在预览步骤中设置
+                  </Text>
+                </div>
+              </div>
+            </Col>
+            <Col span={12}>
+              <div>
+                <Title level={5} style={{ marginBottom: '8px' }}>帧率</Title>
+                <Radio.Group
+                  value={frameRate}
+                  onChange={(e) => setFrameRate(e.target.value)}
+                  style={{ width: '100%' }}
+                  size="small"
+                >
+                  {frameRateOptions.map(option => (
+                    <Radio.Button key={option.value} value={option.value} style={{ fontSize: '12px' }}>
+                      {option.value} FPS
+                    </Radio.Button>
+                  ))}
+                </Radio.Group>
+              </div>
+            </Col>
+          </Row>
+
+          {/* 预计信息 - 紧凑显示 */}
+          <div style={{ 
+            background: '#fafafa', 
+            border: '1px solid #e8e8e8',
+            borderRadius: '6px',
+            padding: '12px'
+          }}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <div style={{ textAlign: 'center' }}>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>文件大小</Text>
+                  <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>{getEstimatedFileSize()} MB</Text>
+                </div>
+              </Col>
+              <Col span={8}>
+                <div style={{ textAlign: 'center' }}>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>处理时间</Text>
+                  <Text strong style={{ fontSize: '16px', color: '#52c41a' }}>{getEstimatedTime()}</Text>
+                </div>
+              </Col>
+              <Col span={8}>
+                <div style={{ textAlign: 'center' }}>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>输出分辨率</Text>
+                  <Text strong style={{ fontSize: '16px', color: '#722ed1' }}>
+                    {getCurrentQuality()?.width}×{getCurrentQuality()?.height}
+                  </Text>
+                </div>
+              </Col>
+            </Row>
+          </div>
+
+          {/* 快速预设 */}
+          <div>
+            <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
+              快速预设: 
+            </Text>
+            <Space wrap>
+              <Button 
+                size="small"
+                onClick={() => {setQuality('1080p'); setFormat('mp4'); setFrameRate(30)}}
+              >
+                标准质量
+              </Button>
+              <Button 
+                size="small"
+                onClick={() => {setQuality('720p'); setFormat('mp4'); setFrameRate(24)}}
+              >
+                快速导出
+              </Button>
+              <Button 
+                size="small"
+                onClick={() => {setQuality('2160p'); setFormat('mp4'); setFrameRate(30)}}
+              >
+                最佳质量
+              </Button>
+            </Space>
+          </div>
+
+          {/* 提示和诊断工具 */}
+          <Alert
+            message="💡 导出提示"
+            description="处理过程中请不要关闭浏览器 • 高质量需要更长时间 • 可返回上一步添加背景音乐"
+            type="info"
+            showIcon
+            style={{ fontSize: '12px' }}
+          />
+
+          <Button
+            type="default"
+            size="small"
+            icon={<BugOutlined />}
+            onClick={handleShowDiagnostic}
+            block
+          >
+            检查编解码器支持
+          </Button>
+
+        </Space>
+      </Card>
+
       {/* 诊断模态框 */}
       <Modal
         title="🔍 编解码器诊断报告"
@@ -477,7 +477,7 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
           </div>
         )}
       </Modal>
-    </Card>
+    </div>
   )
 }
 

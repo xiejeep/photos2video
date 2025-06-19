@@ -85,8 +85,19 @@ function App() {
     setSelectedPhotos(photoIds)
   }
 
-  const handleEffectsChange = (newEffects) => {
+  const handleEffectsChange = (newEffects, targetPhotoIds = null, applyScope = 'all') => {
     setEffects(prev => ({ ...prev, ...newEffects }))
+    
+    // 如果指定了目标照片，为这些照片应用特效
+    if (targetPhotoIds && targetPhotoIds.length > 0) {
+      setPhotos(prevPhotos => 
+        prevPhotos.map(photo => 
+          targetPhotoIds.includes(photo.id) 
+            ? { ...photo, effects: { ...photo.effects, ...newEffects } }
+            : photo
+        )
+      )
+    }
   }
 
   const handleAspectRatioChange = (aspectRatio) => {
@@ -99,7 +110,7 @@ function App() {
   }
 
   // 处理图片编辑
-  const handlePhotoEdit = async (photoId, transform, aspectRatio) => {
+  const handlePhotoEdit = async (photoId, transform, aspectRatio, editResult = null) => {
     const photo = photos.find(p => p.id === photoId)
     if (!photo) return
 
@@ -107,29 +118,62 @@ function App() {
       setIsLoading(true)
       setLoadingText('正在处理图片...')
 
-      // 生成编辑后的图片
-      const editedUrl = await processImage(
-        photo.url, 
-        transform, 
-        aspectRatio, 
-        1920  // 输出宽度
-      )
+      // 如果是贴纸应用操作
+      if (editResult?.type === 'sticker' && editResult.stickers) {
+        setPhotos(prev => prev.map(p => {
+          if (p.id === photoId) {
+            return {
+              ...p,
+              stickers: editResult.stickers,
+              hasStickers: true
+            }
+          }
+          return p
+        }))
+        return
+      }
 
-      // 更新photos数组
-      setPhotos(prev => prev.map(p => {
-        if (p.id === photoId) {
-          // 释放之前的编辑图片
-          if (p.editedUrl) {
-            releaseBlobUrl(p.editedUrl)
+      // 如果有变换操作，生成编辑后的图片
+      if (transform) {
+        const editedUrl = await processImage(
+          photo.url, 
+          transform, 
+          aspectRatio, 
+          1920  // 输出宽度
+        )
+
+        // 更新photos数组
+        setPhotos(prev => prev.map(p => {
+          if (p.id === photoId) {
+            // 释放之前的编辑图片
+            if (p.editedUrl) {
+              releaseBlobUrl(p.editedUrl)
+            }
+            return {
+              ...p,
+              editedUrl,
+              isEdited: true,
+              transform, // 保存变换信息
+              // 保留贴纸数据和添加新的编辑结果
+              stickers: editResult?.stickers || p.stickers,
+              hasStickers: !!(editResult?.stickers || p.stickers)
+            }
           }
-          return {
-            ...p,
-            editedUrl,
-            isEdited: true
+          return p
+        }))
+      } else if (editResult?.stickers) {
+        // 只有贴纸操作，不需要重新生成图片
+        setPhotos(prev => prev.map(p => {
+          if (p.id === photoId) {
+            return {
+              ...p,
+              stickers: editResult.stickers,
+              hasStickers: true
+            }
           }
-        }
-        return p
-      }))
+          return p
+        }))
+      }
 
       message.success('图片编辑成功')
     } catch (error) {
@@ -225,28 +269,31 @@ function App() {
       case 1:
         return (
           <div>
+            {/* 上方：视频实时预览和背景音乐并排 */}
             <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
-              <Col xs={24} lg={12}>
+              <Col xs={24}>
+                <div style={{ background: '#fafafa', padding: '20px', borderRadius: '8px' }}>
+                  <PreviewPanel 
+                    photos={photos.filter(photo => selectedPhotos.includes(photo.id))}
+                    effects={effects}
+                    audioFile={audioFile}
+                    onAspectRatioChange={handleAspectRatioChange}
+                    onPhotoEdit={handlePhotoEdit}
+                  />
+                </div>
+              </Col>
+            </Row>
+            
+            {/* 下方：视觉特效面板占据全宽 */}
+            <Row>
+              <Col xs={24}>
                 <EffectsPanel 
                   effects={effects}
                   onChange={handleEffectsChange}
-                />
-              </Col>
-              <Col xs={24} lg={12}>
-                <AudioPanel 
+                  photos={photos}
+                  selectedPhotos={selectedPhotos}
                   audioFile={audioFile}
                   onAudioUpload={handleAudioUpload}
-                />
-              </Col>
-            </Row>
-            <Row gutter={[24, 24]}>
-              <Col xs={24}>
-                <PreviewPanel 
-                  photos={photos.filter(photo => selectedPhotos.includes(photo.id))}
-                  effects={effects}
-                  audioFile={audioFile}
-                  onAspectRatioChange={handleAspectRatioChange}
-                  onPhotoEdit={handlePhotoEdit}
                 />
               </Col>
             </Row>
@@ -310,91 +357,97 @@ function App() {
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
           }}
         >
-          <div style={{ position: 'relative' }}>
-            <Steps
-              current={currentStep}
-              onChange={handleStepChange}
-              items={steps}
-              style={{ marginBottom: '24px' }}
-            />
-            {/* 点击提示 */}
-            <div style={{ 
-              position: 'absolute',
-              top: '-8px',
-              right: '0',
-              background: '#fff2e8',
-              border: '1px solid #ffb84d',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              fontSize: '11px',
-              color: '#d4380d'
-            }}>
-              💡 点击步骤圆点可快速跳转
-            </div>
-          </div>
-
-          {/* 步骤导航按钮 */}
+          {/* 紧凑的步骤导航 */}
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
-            marginBottom: '24px',
-            padding: '16px',
+            marginBottom: '16px',
+            padding: '12px 16px',
             background: '#f8f9fa',
             borderRadius: '8px',
             border: '1px solid #e9ecef'
           }}>
+            {/* 左侧：上一步按钮 */}
             {currentStep === 0 ? (
               <div style={{ 
-                minWidth: '120px',
-                padding: '8px 16px',
+                minWidth: '100px',
+                padding: '6px 12px',
                 background: '#e6f7ff',
                 border: '1px solid #91d5ff',
                 borderRadius: '6px',
                 textAlign: 'center',
-                fontSize: '12px',
+                fontSize: '11px',
                 color: '#1890ff'
               }}>
-                👋 开始制作相册
+                👋 开始制作
               </div>
             ) : (
               <Button
-                size="large"
+                size="small"
                 onClick={() => handleStepChange(currentStep - 1)}
-                style={{ minWidth: '120px' }}
+                style={{ minWidth: '100px' }}
               >
                 ← 上一步
               </Button>
             )}
 
+            {/* 中间：步骤指示器 */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center',
-              gap: '8px',
-              color: '#666',
-              fontSize: '14px'
+              gap: '12px'
             }}>
-              <span style={{ 
-                background: '#1890ff',
-                color: 'white',
-                padding: '4px 8px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: '500'
+              {/* 步骤圆点 */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {steps.map((_, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleStepChange(index)}
+                    style={{
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      background: index === currentStep ? '#1890ff' : 
+                                 index < currentStep ? '#52c41a' : '#d9d9d9',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      border: index === currentStep ? '2px solid #fff' : 'none',
+                      boxShadow: index === currentStep ? '0 0 0 2px #1890ff' : 'none'
+                    }}
+                    title={`步骤 ${index + 1}: ${steps[index].title}`}
+                  />
+                ))}
+              </div>
+              
+              {/* 当前步骤信息 */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                gap: '6px',
+                color: '#666',
+                fontSize: '13px'
               }}>
-                {currentStep + 1}/{steps.length}
-              </span>
-              <span style={{ color: '#1890ff', fontWeight: '600', fontSize: '16px' }}>
-                {steps[currentStep]?.title}
-              </span>
-              <span style={{ color: '#8c8c8c', fontSize: '13px' }}>
-                {steps[currentStep]?.description}
-              </span>
+                <span style={{ 
+                  background: '#1890ff',
+                  color: 'white',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  fontSize: '10px',
+                  fontWeight: '500'
+                }}>
+                  {currentStep + 1}/{steps.length}
+                </span>
+                <span style={{ color: '#1890ff', fontWeight: '600', fontSize: '14px' }}>
+                  {steps[currentStep]?.title}
+                </span>
+              </div>
             </div>
 
+            {/* 右侧：下一步按钮 */}
             <Button
               type="primary"
-              size="large"
+              size="small"
               onClick={() => {
                 if (currentStep === steps.length - 1) {
                   message.success('相册制作完成！您可以在左侧设置导出参数并生成视频')
@@ -410,7 +463,7 @@ function App() {
                 (currentStep >= 1 && selectedPhotos.length === 0) ? 
                 '请先选择要制作相册的照片' : ''
               }
-              style={{ minWidth: '120px' }}
+              style={{ minWidth: '100px' }}
             >
               {currentStep === steps.length - 1 ? '完成制作' : '下一步 →'}
             </Button>

@@ -1,0 +1,30 @@
+/* 自定义字体定义 */
+
+/* 用户自定义字体 */
+
+/* 加油字体 */
+@font-face {
+  font-family: 'JiaYouFont';
+  src: url('./jiayou.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 手写字体 */
+@font-face {
+  font-family: 'ShouXieFont';
+  src: url('./shouxie.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 自由字体 */
+@font-face {
+  font-family: 'FreeFont';
+  src: url('./free.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+} 

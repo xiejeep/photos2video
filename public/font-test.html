@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字体测试页面</title>
+    <link rel="stylesheet" href="./fonts/fonts.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .font-test {
+            background: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .font-name {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .font-sample {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .font-info {
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <h1>字体测试页面</h1>
+    <p>这个页面可以帮助你测试自定义字体是否正确加载</p>
+    
+    <!-- 常用系统字体测试 -->
+    <h2>📱 系统字体</h2>
+    
+    <div class="font-test">
+        <div class="font-name">微软雅黑</div>
+        <div class="font-sample" style="font-family: 'Microsoft YaHei', sans-serif;">
+            微软雅黑测试 - Microsoft YaHei Test 123456
+        </div>
+        <div class="font-info">Microsoft YaHei</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">宋体</div>
+        <div class="font-sample" style="font-family: 'SimSun', serif;">
+            宋体测试 - SimSun Test 123456
+        </div>
+        <div class="font-info">SimSun</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">楷体</div>
+        <div class="font-sample" style="font-family: 'KaiTi', serif;">
+            楷体测试 - KaiTi Test 123456
+        </div>
+        <div class="font-info">KaiTi</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">黑体</div>
+        <div class="font-sample" style="font-family: 'SimHei', sans-serif;">
+            黑体测试 - SimHei Test 123456
+        </div>
+        <div class="font-info">SimHei</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">Arial</div>
+        <div class="font-sample" style="font-family: Arial, sans-serif;">
+            Arial Font Test - The Quick Brown Fox 123456
+        </div>
+        <div class="font-info">Arial</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">Impact</div>
+        <div class="font-sample" style="font-family: Impact, sans-serif;">
+            IMPACT FONT TEST - BOLD DISPLAY 123456
+        </div>
+        <div class="font-info">Impact</div>
+    </div>
+    
+    <!-- 用户新增字体 -->
+    <h3>🆕 用户新增字体</h3>
+    
+    <div class="font-test">
+        <div class="font-name">加油字体</div>
+        <div class="font-sample" style="font-family: 'JiaYouFont', sans-serif;">
+            加油字体测试 - 努力加油 Fighting 123456
+        </div>
+        <div class="font-info">JiaYouFont (jiayou.ttf)</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">手写字体</div>
+        <div class="font-sample" style="font-family: 'ShouXieFont', cursive;">
+            手写字体测试 - 手写风格 Handwriting 123456
+        </div>
+        <div class="font-info">ShouXieFont (shouxie.otf)</div>
+    </div>
+    
+    <div class="font-test">
+        <div class="font-name">免费字体</div>
+        <div class="font-sample" style="font-family: 'FreeFont', sans-serif;">
+            免费字体测试 - Free Font Test 123456
+        </div>
+        <div class="font-info">FreeFont (free.ttf)</div>
+    </div>
+    
+    <h2>🔧 使用说明</h2>
+    <ol>
+        <li>将字体文件放在 <code>public/fonts/</code> 目录下</li>
+        <li>在 <code>fonts.css</code> 中定义字体</li>
+        <li>刷新此页面检查字体是否正确显示</li>
+        <li>如果字体显示正常，就可以在应用中使用了</li>
+    </ol>
+    
+    <p><strong>提示：</strong>如果某个字体没有正确显示，请检查：</p>
+    <ul>
+        <li>字体文件路径是否正确</li>
+        <li>CSS 中的 font-family 名称是否匹配</li>
+        <li>字体文件是否完整</li>
+        <li>浏览器控制台是否有错误信息</li>
+    </ul>
+</body>
+</html> 

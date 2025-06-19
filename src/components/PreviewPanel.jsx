@@ -6,7 +6,6 @@ import {
   StepForwardOutlined,
   StepBackwardOutlined,
   EyeOutlined,
-  ExpandOutlined,
   BorderOutlined,
   EditOutlined,
   ZoomInOutlined,
@@ -39,8 +38,8 @@ const PreviewPanel = ({
   const [transitionDirection, setTransitionDirection] = useState('next')
   const [previewAspectRatio, setPreviewAspectRatio] = useState('16:9')
   
-  // 图片编辑相关状态
-  const [imageEditorVisible, setImageEditorVisible] = useState(false)
+  // 图片编辑相关状态 - 始终显示
+  const imageEditorVisible = true
 
   const intervalRef = useRef(null)
   const transitionIntervalRef = useRef(null)
@@ -264,18 +263,40 @@ const PreviewPanel = ({
   }
 
   const getCurrentPhotoStyle = () => {
-    const baseTransforms = []
-    
-    // Ken Burns 效果
-    if (effects.kenBurns) {
-      baseTransforms.push('scale(1.05)')
+    // 如果启用了Ken Burns效果，不设置transform（由CSS动画控制）
+    if (effects.kenBurns && !isTransitioning) {
+      return { 
+        opacity: 1, 
+        zIndex: 2
+        // transform 由kenBurns动画控制
+      }
     }
+
+    const baseTransforms = ['translate(-50%, -50%)'] // 始终保持居中
 
     if (!isTransitioning) {
       return { 
         opacity: 1, 
         zIndex: 2,
-        transform: baseTransforms.join(' ') || 'none'
+        transform: baseTransforms.join(' ')
+      }
+    }
+
+    // 如果启用了Ken Burns效果，转场期间也交给CSS动画处理
+    if (effects.kenBurns) {
+      switch (effects.transition) {
+        case 'fade':
+          return {
+            opacity: 1 - transitionProgress,
+            zIndex: 2
+            // transform 由kenBurns动画控制
+          }
+        default:
+          return {
+            opacity: 1 - transitionProgress,
+            zIndex: 2
+            // transform 由kenBurns动画控制
+          }
       }
     }
 
@@ -287,7 +308,7 @@ const PreviewPanel = ({
         return {
           opacity: 1 - transitionProgress,
           zIndex: 2,
-          transform: additionalTransforms.join(' ') || 'none'
+          transform: additionalTransforms.join(' ')
         }
       case 'slide':
         const slideTo = isReverse ? 100 : -100
@@ -316,43 +337,68 @@ const PreviewPanel = ({
         return {
           opacity: 1 - transitionProgress,
           zIndex: 2,
-          transform: additionalTransforms.join(' ') || 'none'
+          transform: additionalTransforms.join(' ')
         }
     }
   }
 
   const getNextPhotoStyle = () => {
+    // 如果启用了Ken Burns效果，交给CSS动画处理
+    if (effects.kenBurns) {
+      switch (effects.transition) {
+        case 'fade':
+          return {
+            opacity: transitionProgress,
+            zIndex: 1
+            // transform 由kenBurns动画控制
+          }
+        default:
+          return {
+            opacity: transitionProgress,
+            zIndex: 1
+            // transform 由kenBurns动画控制
+          }
+      }
+    }
+
     const isReverse = transitionDirection === 'prev'
+    const baseTransforms = ['translate(-50%, -50%)'] // 始终保持居中
     
     switch (effects.transition) {
       case 'fade':
         return {
           opacity: transitionProgress,
-          zIndex: 1
+          zIndex: 1,
+          transform: baseTransforms.join(' ')
         }
       case 'slide':
         const slideFrom = isReverse ? -100 : 100
+        baseTransforms.push(`translateX(${slideFrom - transitionProgress * slideFrom}%)`)
         return {
-          transform: `translateX(${slideFrom - transitionProgress * slideFrom}%)`,
+          transform: baseTransforms.join(' '),
           zIndex: 1
         }
       case 'zoom':
+        baseTransforms.push(`scale(${1.2 - transitionProgress * 0.2})`)
         return {
           opacity: transitionProgress,
-          transform: `scale(${1.2 - transitionProgress * 0.2})`,
+          transform: baseTransforms.join(' '),
           zIndex: 1
         }
       case 'rotate':
         const rotateFrom = isReverse ? 90 : -90
+        baseTransforms.push(`rotate(${rotateFrom + transitionProgress * -rotateFrom}deg)`)
+        baseTransforms.push(`scale(${0.8 + transitionProgress * 0.2})`)
         return {
           opacity: transitionProgress,
-          transform: `rotate(${rotateFrom + transitionProgress * -rotateFrom}deg) scale(${0.8 + transitionProgress * 0.2})`,
+          transform: baseTransforms.join(' '),
           zIndex: 1
         }
       default:
         return {
           opacity: transitionProgress,
-          zIndex: 1
+          zIndex: 1,
+          transform: baseTransforms.join(' ')
         }
     }
   }
@@ -402,6 +448,13 @@ const PreviewPanel = ({
     return currentPhoto.editedUrl || currentPhoto.url
   }
 
+  // 获取当前照片的原始URL（用于编辑器）
+  const getCurrentPhotoOriginalUrl = () => {
+    const currentPhoto = photos[currentIndex]
+    if (!currentPhoto) return null
+    return currentPhoto.url // 始终返回原始图片
+  }
+
   // 获取目标照片的显示URL
   const getTargetPhotoUrl = (targetIndex) => {
     const targetPhoto = photos[targetIndex]
@@ -431,278 +484,313 @@ const PreviewPanel = ({
           )}
         </div>
       }
-      style={{ height: showFinalPreview ? '500px' : '400px' }}
-      bodyStyle={{ height: 'calc(100% - 57px)', padding: '16px' }}
+      style={{ height: 'auto', border: 'none' }}
+      bodyStyle={{ padding: '0' }}
     >
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', gap: '16px', height: '100%' }}>
         
-        {/* 比例选择器/显示器 */}
-        <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <BorderOutlined style={{ color: '#1890ff' }} />
-          <Text style={{ fontSize: '14px', fontWeight: '500' }}>
-            {showFinalPreview ? '视频比例:' : '预览比例:'}
-          </Text>
-          {!showFinalPreview ? (
-            <>
-              <Select
-                value={previewAspectRatio}
-                onChange={handleAspectRatioChange}
-                size="small"
-                style={{ width: '120px' }}
-              >
-                {aspectRatioOptions.map(option => (
-                  <Select.Option key={option.value} value={option.value}>
-                    {option.label}
-                  </Select.Option>
-                ))}
-              </Select>
-              <Tag color="blue" style={{ fontSize: '11px' }}>
-                {aspectRatioOptions.find(opt => opt.value === previewAspectRatio)?.value}
-              </Tag>
-            </>
-          ) : (
-            <>
-              <Text strong style={{ fontSize: '14px' }}>
-                {aspectRatioOptions.find(opt => opt.value === currentAspectRatio)?.label || currentAspectRatio}
-              </Text>
-              <Tag color="green" style={{ fontSize: '11px' }}>
-                {currentAspectRatio}
-              </Tag>
-            </>
-          )}
-        </div>
+        {/* 左侧：预览区域 */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' }}>
+          
+          {/* 比例选择器/显示器 */}
+          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BorderOutlined style={{ color: '#1890ff' }} />
+            <Text style={{ fontSize: '14px', fontWeight: '500' }}>
+              { '视频比例:'}
+            </Text>
+            {!showFinalPreview ? (
+              <>
+                <Select
+                  value={previewAspectRatio}
+                  onChange={handleAspectRatioChange}
+                  size="small"
+                  style={{ width: '120px' }}
+                >
+                  {aspectRatioOptions.map(option => (
+                    <Select.Option key={option.value} value={option.value}>
+                      {option.label}
+                    </Select.Option>
+                  ))}
+                </Select>
+                <Tag color="blue" style={{ fontSize: '11px' }}>
+                  {aspectRatioOptions.find(opt => opt.value === previewAspectRatio)?.value}
+                </Tag>
+              </>
+            ) : (
+              <>
+                <Text strong style={{ fontSize: '14px' }}>
+                  {aspectRatioOptions.find(opt => opt.value === currentAspectRatio)?.label || currentAspectRatio}
+                </Text>
+                <Tag color="green" style={{ fontSize: '11px' }}>
+                  {currentAspectRatio}
+                </Tag>
+              </>
+            )}
+          </div>
 
-        {/* 预览区域 */}
-        <div 
-          className="preview-area"
-          style={{ 
-            flex: 1, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            position: 'relative',
-            minHeight: '250px',
-            background: '#f5f5f5',
-            borderRadius: '8px',
-            overflow: 'hidden'
-          }}
-        >
-          {photos.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#666' }}>
-              <EyeOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
-              <Text type="secondary">选择照片后可在此预览效果</Text>
-            </div>
-          ) : (
-            <>
-              {/* 比例预览容器 */}
-              <div
-                style={{
-                  ...getAspectRatioStyle(),
-                  background: '#000',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: 'none'
-                }}
-              >
+          {/* 预览区域 */}
+          <div 
+            className="preview-area"
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              position: 'relative',
+              minHeight: '250px',
+              background: '#f5f5f5',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}
+          >
+            {photos.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#666' }}>
+                <EyeOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+                <Text type="secondary">选择照片后可在此预览效果</Text>
+              </div>
+            ) : (
+              <>
+                {/* 比例预览容器 */}
+                <div
+                  style={{
+                    ...getAspectRatioStyle(),
+                    background: '#000',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: 'none'
+                  }}
+                >
 
-                {/* 当前照片 */}
-                {photos[currentIndex] ? (
-                  <img
-                    key={`current-${currentIndex}`}
-                    src={getCurrentPhotoUrl()}
-                    alt={`照片 ${currentIndex + 1}`}
-                    style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      filter: getFilterStyle(),
-                      animation: effects.kenBurns ? 'kenBurns 4s ease-in-out infinite alternate' : 'none',
-                      userSelect: 'none',
-                      ...getCurrentPhotoStyle()
-                    }}
-
-                    draggable={false}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: '#f0f0f0',
-                      color: '#999',
-                      fontSize: '14px'
-                    }}
-                  >
-                    暂无图片
-                  </div>
-                )}
-
-                {/* 目标照片（转场时显示） */}
-                {isTransitioning && photos.length > 1 && (() => {
-                  const targetIndex = transitionDirection === 'next' 
-                    ? (currentIndex + 1) % photos.length 
-                    : (currentIndex - 1 + photos.length) % photos.length
-                  
-                  return (
+                  {/* 当前照片 */}
+                  {photos[currentIndex] ? (
                     <img
-                      key={`target-${targetIndex}`}
-                      src={getTargetPhotoUrl(targetIndex)}
-                      alt={`照片 ${targetIndex + 1}`}
+                      key={`current-${currentIndex}`}
+                      src={getCurrentPhotoUrl()}
+                      alt={`照片 ${currentIndex + 1}`}
+                                            style={{
+                        position: 'absolute',
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        width: 'auto',
+                        height: 'auto',
+                        left: '50%',
+                        top: '50%',
+                        objectFit: 'contain',
+                        filter: getFilterStyle(),
+                        animation: effects.kenBurns ? 'kenBurns 4s ease-in-out infinite alternate' : 'none',
+                        userSelect: 'none',
+
+                        ...getCurrentPhotoStyle()
+                      }}
+
+                      draggable={false}
+                    />
+                  ) : (
+                    <div
                       style={{
                         position: 'absolute',
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover',
-                        filter: getFilterStyle(),
-                        transform: effects.kenBurns ? 'scale(1.05)' : 'scale(1)',
-                        ...getNextPhotoStyle()
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#f0f0f0',
+                        color: '#999',
+                        fontSize: '14px'
                       }}
-                      draggable={false}
-                    />
-                  )
-                })()}
+                    >
+                      暂无图片
+                    </div>
+                  )}
 
-                {/* 文字叠加 */}
-                {effects.textOverlay && (
-                  <div
-                    style={{
+                  {/* 目标照片（转场时显示） */}
+                  {isTransitioning && photos.length > 1 && (() => {
+                    const targetIndex = transitionDirection === 'next' 
+                      ? (currentIndex + 1) % photos.length 
+                      : (currentIndex - 1 + photos.length) % photos.length
+                    
+                    return (
+                      <img
+                        key={`target-${targetIndex}`}
+                        src={getTargetPhotoUrl(targetIndex)}
+                        alt={`照片 ${targetIndex + 1}`}
+                                                style={{
+                          position: 'absolute',
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          left: '50%',
+                          top: '50%',
+                          objectFit: 'contain',
+                          filter: getFilterStyle(),
+                          // 转场图片也需要考虑Ken Burns效果
+                          animation: effects.kenBurns ? 'kenBurns 4s ease-in-out infinite alternate' : 'none',
+                          ...getNextPhotoStyle()
+                        }}
+                        draggable={false}
+                      />
+                    )
+                  })()}
+
+                  {/* 文字叠加 */}
+                  {effects.textOverlay && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '50%',
+                        top: effects.textPosition === 'top' ? '10%' : 
+                             effects.textPosition === 'center' ? '50%' : '90%',
+                        transform: 'translate(-50%, -50%)',
+                        color: effects.textColor || '#ffffff',
+                        fontSize: `${effects.textSize || 24}px`,
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                        whiteSpace: 'pre-line',
+                        maxWidth: '80%',
+                        zIndex: 10
+                      }}
+                    >
+                      {effects.textOverlay}
+                    </div>
+                  )}
+
+                  {/* 播放状态指示 */}
+                  {isPlaying && (
+                    <div style={{
                       position: 'absolute',
-                      left: '50%',
-                      top: effects.textPosition === 'top' ? '10%' : 
-                           effects.textPosition === 'center' ? '50%' : '90%',
-                      transform: 'translate(-50%, -50%)',
-                      color: effects.textColor || '#ffffff',
-                      fontSize: `${effects.textSize || 24}px`,
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                      textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                      whiteSpace: 'pre-line',
-                      maxWidth: '80%',
-                      zIndex: 10
-                    }}
-                  >
-                    {effects.textOverlay}
-                  </div>
-                )}
-
-                {/* 播放状态指示 */}
-                {isPlaying && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '16px',
-                    right: '16px',
-                    background: 'rgba(0, 0, 0, 0.7)',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '12px'
-                  }}>
-                    {isTransitioning ? `转场中 ${transitionDirection === 'next' ? '→' : '←'} (${Math.round(transitionProgress * 100)}%)` : '播放中...'}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* 进度条 */}
-        {photos.length > 0 && (
-          <div style={{ margin: '12px 0' }}>
-            <Progress 
-              percent={progress} 
-              showInfo={false}
-              strokeColor="#1890ff"
-              size="small"
-            />
-          </div>
-        )}
-
-        {/* 编辑工具栏 */}
-        {photos.length > 0 && !showFinalPreview && (
-          <div style={{ margin: '12px 0', textAlign: 'center' }}>
-            <Button
-              icon={<ExpandOutlined />}
-              onClick={() => setImageEditorVisible(true)}
-              size="small"
-              disabled={isTransitioning}
-              type="primary"
-            >
-              编辑图片
-            </Button>
-            
-            {photos.filter(p => p.isEdited).length > 0 && (
-              <div style={{ marginTop: '8px' }}>
-                <Text 
-                  type="secondary" 
-                  style={{ fontSize: '11px' }}
-                >
-                  已编辑 {photos.filter(p => p.isEdited).length} 张图片
-                </Text>
-              </div>
+                      top: '16px',
+                      right: '16px',
+                      background: 'rgba(0, 0, 0, 0.7)',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px'
+                    }}>
+                      {isTransitioning ? `转场中 ${transitionDirection === 'next' ? '→' : '←'} (${Math.round(transitionProgress * 100)}%)` : '播放中...'}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
-        )}
+        </div>
 
-        {/* 控制按钮 */}
-        <Space style={{ justifyContent: 'center', width: '100%' }}>
-          <Button
-            icon={<StepBackwardOutlined />}
-            onClick={handlePrev}
-            disabled={photos.length === 0 || isTransitioning}
-            size="small"
-          />
-          <Button
-            type="primary"
-            icon={isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-            onClick={togglePlay}
-            disabled={photos.length === 0 || isTransitioning}
-          >
-            {isPlaying ? '暂停' : '播放'}
-          </Button>
-          <Button
-            icon={<StepForwardOutlined />}
-            onClick={handleNext}
-            disabled={photos.length === 0 || isTransitioning}
-            size="small"
-          />
-          <Button
-            onClick={handleReset}
-            disabled={photos.length === 0 || isTransitioning}
-            size="small"
-          >
-            重置
-          </Button>
-        </Space>
+        {/* 右侧：控制面板 */}
+        <div style={{ 
+          width: '200px', 
+          display: 'flex', 
+          flexDirection: 'column',
+          gap: '12px',
+          padding: '16px',
+          background: '#f8f9fa',
+          borderRadius: '0 8px 8px 0'
+        }}>
+          
+          {/* 进度条 */}
+          {photos.length > 0 && (
+            <div>
+              <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '6px' }}>播放进度</Text>
+              <Progress 
+                percent={progress} 
+                showInfo={false}
+                strokeColor="#1890ff"
+                size="small"
+              />
+            </div>
+          )}
 
-        {/* 预览信息 */}
-        {photos.length > 0 && (
-          <div style={{ 
-            marginTop: '12px', 
-            textAlign: 'center',
-            fontSize: '12px',
-            color: '#666'
-          }}>
-            <Space split={<span>•</span>}>
-              <span>转场: {effects.transition}</span>
-              <span>时长: {effects.duration}s/张</span>
-              {effects.filter !== 'none' && <span>滤镜: {effects.filter}</span>}
-              {audioFile && <span>背景音乐: ✓</span>}
+          {/* 控制按钮 */}
+          {photos.length > 0 && (
+            <div>
+              <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>播放控制</Text>
+              <Space direction="vertical" style={{ width: '100%' }} size="small">
+                <Button
+                  type="primary"
+                  icon={isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                  onClick={togglePlay}
+                  disabled={photos.length === 0 || isTransitioning}
+                  style={{ width: '100%' }}
+                >
+                  {isPlaying ? '暂停' : '播放'}
+                </Button>
+                
+                <Space style={{ width: '100%' }}>
+                  <Button
+                    icon={<StepBackwardOutlined />}
+                    onClick={handlePrev}
+                    disabled={photos.length === 0 || isTransitioning}
+                    size="small"
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    icon={<StepForwardOutlined />}
+                    onClick={handleNext}
+                    disabled={photos.length === 0 || isTransitioning}
+                    size="small"
+                    style={{ flex: 1 }}
+                  />
+                </Space>
+                
+                <Button
+                  onClick={handleReset}
+                  disabled={photos.length === 0 || isTransitioning}
+                  size="small"
+                  style={{ width: '100%' }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </div>
+          )}
+
+          {/* 编辑状态 */}
+          {photos.length > 0 && !showFinalPreview && (
+            <div>
+              <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>图片编辑</Text>
+              
               {photos.filter(p => p.isEdited).length > 0 && (
-                <span style={{ color: '#1890ff' }}>
-                  已编辑 {photos.filter(p => p.isEdited).length} 张图片
-                </span>
+                <div style={{ textAlign: 'center', padding: '8px', background: '#f0f8ff', borderRadius: '4px' }}>
+                  <Text 
+                    type="secondary" 
+                    style={{ fontSize: '11px' }}
+                  >
+                    已编辑 {photos.filter(p => p.isEdited).length} 张图片
+                  </Text>
+                </div>
               )}
-            </Space>
-          </div>
-        )}
+            </div>
+          )}
+
+          {/* 预览信息 */}
+          {photos.length > 0 && (
+            <div>
+              <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '6px' }}>当前设置</Text>
+              <div style={{ 
+                fontSize: '11px',
+                color: '#666',
+                lineHeight: '1.4'
+              }}>
+                <div>转场: {effects.transition}</div>
+                <div>时长: {effects.duration}s/张</div>
+                {effects.filter !== 'none' && <div>滤镜: {effects.filter}</div>}
+                {audioFile && <div style={{ color: '#52c41a' }}>背景音乐: ✓</div>}
+                {effects.textOverlay && <div>文字叠加: ✓</div>}
+                {effects.kenBurns && <div>Ken Burns: ✓</div>}
+                {effects.flip3D && <div>3D翻转: ✓</div>}
+                {photos.filter(p => p.hasStickers).length > 0 && (
+                  <div style={{ color: '#fa8c16' }}>
+                    贴纸装饰: {photos.filter(p => p.hasStickers).length} 张
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* CSS 动画 */}
@@ -724,9 +812,9 @@ const PreviewPanel = ({
         }
         
         @keyframes kenBurns {
-          0% { transform: scale(1) rotate(0deg); }
-          50% { transform: scale(1.1) rotate(0.5deg); }
-          100% { transform: scale(1.05) rotate(-0.5deg); }
+          0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+          50% { transform: translate(-50%, -50%) scale(1.1) rotate(0.5deg); }
+          100% { transform: translate(-50%, -50%) scale(1.05) rotate(-0.5deg); }
         }
         
         @keyframes slideIn {
@@ -745,35 +833,40 @@ const PreviewPanel = ({
         }
       `}</style>
 
-      {/* 图片编辑器弹窗 */}
-      {photos.length > 0 && (
+      {/* 图片编辑器 - 直接集成在下方 */}
+      {photos.length > 0 && !showFinalPreview && (
         <ImageEditor
           visible={imageEditorVisible}
-          onCancel={() => setImageEditorVisible(false)}
-          onConfirm={(newTransform) => {
+          onCancel={() => {}} // 不需要关闭功能
+          onConfirm={(result) => {
             const currentPhoto = photos[currentIndex]
             if (!currentPhoto || !onPhotoEdit) return
 
             // 获取当前的宽高比
-            const aspectRatio = showFinalPreview ? 
-              aspectRatioOptions.find(opt => opt.value === currentAspectRatio)?.ratio || 16/9 :
-              aspectRatioOptions.find(opt => opt.value === previewAspectRatio)?.ratio || 16/9
+            const aspectRatio = aspectRatioOptions.find(opt => opt.value === previewAspectRatio)?.ratio || 16/9
 
-            // 调用图片编辑回调
-            onPhotoEdit(currentPhoto.id, newTransform, aspectRatio)
-            setImageEditorVisible(false)
+            // 调用图片编辑回调，传递完整的编辑结果
+            onPhotoEdit(currentPhoto.id, result.transform, aspectRatio, result)
+            // 不关闭编辑器，让用户可以继续编辑其他图片
           }}
-          imageUrl={getCurrentPhotoUrl()}
-          initialTransform={{
+          imageUrl={getCurrentPhotoOriginalUrl()}
+          initialTransform={photos[currentIndex]?.transform || {
             scale: 1,
             rotation: 0,
             x: 0,
             y: 0
           }}
-          aspectRatio={showFinalPreview ? 
-            aspectRatioOptions.find(opt => opt.value === currentAspectRatio)?.ratio || 16/9 :
-            aspectRatioOptions.find(opt => opt.value === previewAspectRatio)?.ratio || 16/9
-          }
+          aspectRatio={aspectRatioOptions.find(opt => opt.value === previewAspectRatio)?.ratio || 16/9}
+          photos={photos}
+          currentPhotoId={photos[currentIndex]?.id}
+          onStickerApply={(stickers, targetPhotoIds) => {
+            // 处理贴纸应用到多张图片
+            if (onPhotoEdit) {
+              targetPhotoIds.forEach(photoId => {
+                onPhotoEdit(photoId, null, null, { stickers, type: 'sticker' })
+              })
+            }
+          }}
         />
       )}
     </Card>

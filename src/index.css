@@ -14,6 +14,52 @@ body {
   min-height: 100vh;
 }
 
+/* 字体样式定义 */
+.font-microsoft-yahei {
+  font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
+}
+
+.font-pingfang {
+  font-family: "PingFang SC", "苹方", "Helvetica Neue", sans-serif;
+}
+
+.font-source-han {
+  font-family: "Source Han Sans CN", "思源黑体", sans-serif;
+}
+
+.font-simsun {
+  font-family: "SimSun", "宋体", serif;
+}
+
+.font-kaiti {
+  font-family: "KaiTi", "楷体", serif;
+}
+
+.font-simhei {
+  font-family: "SimHei", "黑体", sans-serif;
+}
+
+.font-impact {
+  font-family: Impact, "Arial Black", sans-serif;
+  font-weight: bold;
+}
+
+.font-comic-sans {
+  font-family: "Comic Sans MS", "Chalkboard SE", cursive;
+}
+
+.font-times {
+  font-family: "Times New Roman", Times, serif;
+}
+
+.font-courier {
+  font-family: "Courier New", Courier, monospace;
+}
+
+.font-georgia {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
 #root {
   min-height: 100vh;
 }
