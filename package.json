@@ -2,13 +2,19 @@
   "name": "photo-album-maker",
   "version": "1.0.0",
   "description": "一键生成电子相册的专用工具 - 支持照片导入、特效、文字、背景音乐",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "homepage": "./",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "node production-server.cjs",
+    "start:production": "node production-server.cjs",
+    "start-web": "node start-web.js",
+    "web": "node start-web.js",
+    "check-deploy": "node check-deployment.cjs",
+    "prepare-deploy": "npm run build && npm run check-deploy",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron electron/main.js\"",
     "electron:build": "npm run build && electron-builder",
@@ -17,33 +23,34 @@
     "electron:build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
-    "antd": "^5.12.0",
-    "fabric": "^5.3.0",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",
-    "html2canvas": "^1.4.1",
+    "antd": "^5.12.0",
     "axios": "^1.6.2",
+    "express": "^4.21.2",
+    "fabric": "^5.3.0",
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.2.3",
+    "react-router-dom": "^6.20.1",
     "react-spring": "^9.7.3",
     "react-transition-group": "^4.4.5",
-    "uuid": "^9.0.1",
-    "file-saver": "^2.0.5",
-    "react-dropzone": "^14.2.3"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.1.0",
+    "concurrently": "^7.6.0",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4",
     "eslint": "^8.53.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
     "vite": "^4.5.0",
-    "electron": "^22.0.0",
-    "electron-builder": "^24.6.4",
-    "concurrently": "^7.6.0",
     "wait-on": "^7.0.1"
   },
   "keywords": [
@@ -56,4 +63,4 @@
   ],
   "author": "Your Name",
   "license": "MIT"
-} 
+}

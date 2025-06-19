@@ -1,5 +1,6 @@
 // 视频生成工具
 import { AudioUtils } from './audioUtils.js'
+import { CodecDetector } from './codecDetector.js'
 
 export class VideoGenerator {
   constructor() {
@@ -477,17 +478,30 @@ export class VideoGenerator {
     }
   }
 
-  // 获取支持的MIME类型
+  // 获取支持的MIME类型（增强版）
   getSupportedMimeType(preferredFormat = 'webm') {
+    // 输出诊断信息（仅在开发模式或首次运行时）
+    if (!window.codecDiagnosticLogged) {
+      console.log('🔍 开始编解码器诊断...')
+      CodecDetector.logDiagnostics()
+      window.codecDiagnosticLogged = true
+    }
+    
     // 根据用户选择的格式定义优先级
     let formatPriority = []
     
     switch (preferredFormat) {
       case 'mp4':
         formatPriority = [
-          'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-          'video/mp4;codecs=avc1.42E01E', 
+          // 尝试多种MP4编解码器组合
+          'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+          'video/mp4;codecs="avc1.42E01E"',
+          'video/mp4;codecs="avc1.420028"',
+          'video/mp4;codecs="avc1.42001E"',
+          'video/mp4;codecs="h264,aac"',
+          'video/mp4;codecs="h264"',
           'video/mp4',
+          // 如果MP4不行，降级到WebM
           'video/webm;codecs=vp9,opus',
           'video/webm;codecs=vp8,vorbis',
           'video/webm'
@@ -495,7 +509,9 @@ export class VideoGenerator {
         break
       case 'mov':
         formatPriority = [
-          'video/mp4;codecs=avc1.42E01E,mp4a.40.2', // MOV基本上是MP4容器
+          // MOV通常使用MP4容器
+          'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+          'video/mp4;codecs="avc1.42E01E"',
           'video/mp4',
           'video/webm;codecs=vp9,opus',
           'video/webm'
@@ -509,19 +525,29 @@ export class VideoGenerator {
           'video/webm;codecs=vp9',
           'video/webm;codecs=vp8',
           'video/webm',
+          // 作为备用的MP4
           'video/mp4'
         ]
         break
     }
     
-    // 找到第一个支持的格式
+    // 找到第一个支持的格式，并记录结果
     for (const type of formatPriority) {
       if (MediaRecorder.isTypeSupported(type)) {
+        console.log(`✅ 选择了支持的格式: ${type}`)
+        
+        // 如果用户要求MP4但得到WebM，发出警告
+        if (preferredFormat === 'mp4' && type.includes('webm')) {
+          console.warn(`⚠️ 用户请求MP4格式，但降级为: ${type}`)
+          console.warn('💡 这可能是因为Electron版本不支持H.264编解码器')
+        }
+        
         return type
       }
     }
     
     // 最后的备用方案
+    console.warn('⚠️ 使用最后的备用方案: video/webm')
     return 'video/webm'
   }
 

@@ -4,6 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: './', // 设置为相对路径，适用于Electron应用
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Space, Typography, Select, Radio, Statistic, Alert, Divider, Tag } from 'antd'
+import { Card, Button, Space, Typography, Select, Radio, Statistic, Alert, Divider, Tag, Modal } from 'antd'
 import { 
   ExportOutlined, 
   DownloadOutlined, 
   VideoCameraOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  BugOutlined
 } from '@ant-design/icons'
+import { CodecDetector } from '../utils/codecDetector.js'
 
 const { Title, Text } = Typography
 
@@ -15,6 +17,8 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
   const [quality, setQuality] = useState('1080p')
   const [frameRate, setFrameRate] = useState(30)
   const [aspectRatio, setAspectRatio] = useState(initialAspectRatio)
+  const [showDiagnostic, setShowDiagnostic] = useState(false)
+  const [diagnosticReport, setDiagnosticReport] = useState(null)
 
   // 监听初始比例变化
   useEffect(() => {
@@ -127,6 +131,15 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
       bitrate: currentQuality?.bitrate,
       aspectRatio
     })
+  }
+
+  const handleShowDiagnostic = () => {
+    const report = CodecDetector.generateDiagnosticReport()
+    setDiagnosticReport(report)
+    setShowDiagnostic(true)
+    
+    // 同时在控制台输出
+    CodecDetector.logDiagnostics()
   }
 
   return (
@@ -316,6 +329,19 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
           showIcon
         />
 
+        {/* 诊断工具 */}
+        <div>
+          <Button
+            type="default"
+            size="small"
+            icon={<BugOutlined />}
+            onClick={handleShowDiagnostic}
+            style={{ width: '100%', marginBottom: '12px' }}
+          >
+            检查编解码器支持（解决MP4问题）
+          </Button>
+        </div>
+
         {/* 导出按钮 */}
         <Button
           type="primary"
@@ -360,6 +386,97 @@ const ExportPanel = ({ onExport, selectedCount, hasAudio, initialAspectRatio = '
         </div>
 
       </Space>
+      
+      {/* 诊断模态框 */}
+      <Modal
+        title="🔍 编解码器诊断报告"
+        open={showDiagnostic}
+        onCancel={() => setShowDiagnostic(false)}
+        footer={[
+          <Button key="close" onClick={() => setShowDiagnostic(false)}>
+            关闭
+          </Button>
+        ]}
+        width={800}
+        style={{ maxHeight: '80vh' }}
+        bodyStyle={{ maxHeight: '60vh', overflow: 'auto' }}
+      >
+        {diagnosticReport && (
+          <div>
+            {/* 环境信息 */}
+            <div style={{ marginBottom: '20px' }}>
+              <Title level={5}>🖥️ 环境信息</Title>
+              <div style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px' }}>
+                <p><strong>是否为Electron:</strong> {diagnosticReport.environment.isElectron ? '是' : '否'}</p>
+                <p><strong>Chrome版本:</strong> {diagnosticReport.environment.chromeVersion}</p>
+                <p><strong>Electron版本:</strong> {diagnosticReport.environment.electronVersion}</p>
+                <p><strong>平台:</strong> {diagnosticReport.environment.platform}</p>
+              </div>
+            </div>
+
+            {/* MP4支持详情 */}
+            <div style={{ marginBottom: '20px' }}>
+              <Title level={5}>🎬 MP4编解码器支持</Title>
+              <div style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px' }}>
+                {diagnosticReport.mp4DetailedTest.map((test, index) => (
+                  <div key={index} style={{ marginBottom: '8px' }}>
+                    <span style={{ color: test.supported ? '#52c41a' : '#f5222d' }}>
+                      {test.supported ? '✅' : '❌'}
+                    </span>
+                    <span style={{ marginLeft: '8px' }}>{test.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 支持的格式 */}
+            <div style={{ marginBottom: '20px' }}>
+              <Title level={5}>✅ 支持的格式</Title>
+              <div style={{ background: '#f6ffed', padding: '12px', borderRadius: '6px', border: '1px solid #b7eb8f' }}>
+                {diagnosticReport.allSupportedFormats.map((format, index) => (
+                  <div key={index} style={{ marginBottom: '4px', color: '#389e0d' }}>
+                    ✅ {format}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 建议 */}
+            <div style={{ marginBottom: '20px' }}>
+              <Title level={5}>💡 建议</Title>
+              <div style={{ background: '#e6f7ff', padding: '12px', borderRadius: '6px', border: '1px solid #91d5ff' }}>
+                {diagnosticReport.recommendations.map((rec, index) => (
+                  <div key={index} style={{ marginBottom: '8px', color: '#1890ff' }}>
+                    {rec}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 解决方案 */}
+            <Alert
+              message="解决MP4支持问题的方法"
+              description={
+                <div>
+                  <p><strong>1. 升级Electron版本：</strong></p>
+                  <p>• 当前使用Electron 22，建议升级到Electron 28+</p>
+                  <p>• 新版本包含更新的Chromium和更好的编解码器支持</p>
+                  
+                  <p><strong>2. 临时解决方案：</strong></p>
+                  <p>• 使用WebM格式（质量相当，兼容性更好）</p>
+                  <p>• 或者先导出WebM，再使用FFmpeg转换为MP4</p>
+                  
+                  <p><strong>3. 长期解决方案：</strong></p>
+                  <p>• 升级依赖包版本</p>
+                  <p>• 考虑使用FFmpeg.wasm进行后处理</p>
+                </div>
+              }
+              type="info"
+              showIcon
+            />
+          </div>
+        )}
+      </Modal>
     </Card>
   )
 }
