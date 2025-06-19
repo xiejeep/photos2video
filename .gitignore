@@ -1,0 +1,51 @@
+# 依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 构建输出
+dist/
+build/
+dist-electron/
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+
+# 日志文件
+*.log
+
+# 用户上传的测试文件
+*.jpeg
+*.jpg
+*.png
+*.gif
+*.bmp
+*.webp
+*.mp3
+*.wav
+*.mp4
+*.webm
+*.mov
+
+# 但保留示例文件
+!public/audio/birthday.mp3 
