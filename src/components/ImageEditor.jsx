@@ -158,6 +158,7 @@ const ImageEditor = ({
   // 应用范围状态
   const [applyScope, setApplyScope] = useState('all') // 'current' | 'selected' | 'all'
   const [selectedPhotos, setSelectedPhotos] = useState([])
+  const [isCustomMode, setIsCustomMode] = useState(false) // 控制是否显示自定义模式
 
   // 处理应用范围变化
   const handleApplyScopeChange = (newScope) => {
@@ -257,7 +258,19 @@ const ImageEditor = ({
         scale: 1,
         rotation: 0
       }
-      setStickers(prev => [...prev, newSticker])
+      setStickers(prev => {
+        const newStickers = [...prev, newSticker]
+        
+        // 简易模式下，直接应用到所有图片
+        if (!isCustomMode && onStickerApply) {
+          setTimeout(() => {
+            const targetPhotoIds = photos.map(p => p.id)
+            onStickerApply(newStickers, targetPhotoIds)
+          }, 100)
+        }
+        
+        return newStickers
+      })
       setSelectedSticker(newSticker.id)
       setEditingText(newSticker.id)
     } else {
@@ -269,14 +282,39 @@ const ImageEditor = ({
         scale: 1,
         rotation: 0
       }
-      setStickers(prev => [...prev, newSticker])
+      setStickers(prev => {
+        const newStickers = [...prev, newSticker]
+        
+        // 简易模式下，直接应用到所有图片
+        if (!isCustomMode && onStickerApply) {
+          setTimeout(() => {
+            const targetPhotoIds = photos.map(p => p.id)
+            onStickerApply(newStickers, targetPhotoIds)
+          }, 100)
+        }
+        
+        return newStickers
+      })
       setSelectedSticker(newSticker.id)
     }
   }
 
   // 删除贴纸
   const deleteSticker = (stickerId) => {
-    setStickers(prev => prev.filter(s => s.id !== stickerId))
+    setStickers(prev => {
+      const newStickers = prev.filter(s => s.id !== stickerId)
+      
+      // 简易模式下，立即应用删除到所有图片
+      if (!isCustomMode && onStickerApply) {
+        setTimeout(() => {
+          const targetPhotoIds = photos.map(p => p.id)
+          onStickerApply(newStickers, targetPhotoIds)
+        }, 100)
+      }
+      
+      return newStickers
+    })
+    
     if (selectedSticker === stickerId) {
       setSelectedSticker(null)
     }
@@ -284,9 +322,21 @@ const ImageEditor = ({
 
   // 更新贴纸属性
   const updateSticker = (stickerId, updates) => {
-    setStickers(prev => prev.map(s => 
-      s.id === stickerId ? { ...s, ...updates } : s
-    ))
+    setStickers(prev => {
+      const newStickers = prev.map(s => 
+        s.id === stickerId ? { ...s, ...updates } : s
+      )
+      
+      // 简易模式下，立即应用更新到所有图片
+      if (!isCustomMode && onStickerApply) {
+        setTimeout(() => {
+          const targetPhotoIds = photos.map(p => p.id)
+          onStickerApply(newStickers, targetPhotoIds)
+        }, 100)
+      }
+      
+      return newStickers
+    })
   }
 
   // 贴纸拖拽处理
@@ -1646,6 +1696,21 @@ const ImageEditor = ({
               💡 调整特效会立即应用到{applyScope === 'all' ? '所有图片' : applyScope === 'selected' ? '选中图片' : '当前图片'}
             </Text>
           </div>
+          
+          {/* 贴纸模式提示 */}
+          {!isCustomMode && (
+            <div style={{ 
+              padding: '8px', 
+              background: '#f6ffed', 
+              borderRadius: '4px', 
+              border: '1px solid #b7eb8f',
+              marginTop: '8px'
+            }}>
+              <Text type="secondary" style={{ fontSize: '11px' }}>
+                ⚡ 简易模式：贴纸会自动应用到所有图片
+              </Text>
+            </div>
+          )}
         </div>
         
         {/* 贴纸选择 */}
@@ -1711,54 +1776,100 @@ const ImageEditor = ({
 
 
 
-        {/* 应用范围设置 */}
+        {/* 贴纸模式切换和应用范围设置 */}
         <div style={{ background: '#e6f7ff', padding: '16px', borderRadius: '8px', flex: '0 0 280px' }}>
-          <Text strong style={{ display: 'block', marginBottom: '8px' }}>🎯 应用范围</Text>
-          <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginBottom: '12px' }}>
-            设置特效和贴纸的应用范围
-          </Text>
+          <Text strong style={{ display: 'block', marginBottom: '8px' }}>🎯 贴纸应用模式</Text>
           
-          <Select
-            value={applyScope}
-            onChange={handleApplyScopeChange}
-            style={{ width: '100%', marginBottom: '12px' }}
-            size="small"
-          >
-            <Option value="current">仅当前图片</Option>
-            <Option value="selected">选择的图片</Option>
-            <Option value="all">所有图片</Option>
-          </Select>
-
-          {applyScope === 'selected' && (
-            <div>
-              <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
-                选择目标图片：
-              </Text>
-              <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
-                {photos.map((photo, index) => (
-                  <div key={photo.id} style={{ marginBottom: '4px' }}>
-                    <Checkbox
-                      checked={selectedPhotos.includes(photo.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedPhotos(prev => [...prev, photo.id])
-                        } else {
-                          setSelectedPhotos(prev => prev.filter(id => id !== photo.id))
-                        }
-                      }}
-                    >
-                      <span style={{ fontSize: '12px' }}>图片 {index + 1}</span>
-                    </Checkbox>
-                  </div>
-                ))}
+          {/* 模式切换 */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '8px', 
+              marginBottom: '8px',
+              padding: '8px',
+              background: isCustomMode ? '#fff3cd' : '#f6ffed',
+              borderRadius: '6px',
+              border: `1px solid ${isCustomMode ? '#ffeaa7' : '#b7eb8f'}`
+            }}>
+              <Checkbox
+                checked={isCustomMode}
+                onChange={(e) => setIsCustomMode(e.target.checked)}
+                style={{ alignSelf: 'flex-start' }}
+              />
+              <div style={{ flex: 1 }}>
+                <Text strong style={{ fontSize: '12px', display: 'block' }}>
+                  {isCustomMode ? '🔧 自定义模式' : '⚡ 简易模式'}
+                </Text>
+                <Text type="secondary" style={{ fontSize: '10px', lineHeight: '1.3' }}>
+                  {isCustomMode ? 
+                    '手动选择应用范围，点击应用按钮生效' : 
+                    '自动应用到所有图片，添加即生效'
+                  }
+                </Text>
               </div>
             </div>
+          </div>
+
+          {/* 自定义模式下显示应用范围设置 */}
+          {isCustomMode && (
+            <>
+              <Text strong style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}>
+                应用范围
+              </Text>
+              
+              <Select
+                value={applyScope}
+                onChange={handleApplyScopeChange}
+                style={{ width: '100%', marginBottom: '12px' }}
+                size="small"
+              >
+                <Option value="current">仅当前图片</Option>
+                <Option value="selected">选择的图片</Option>
+                <Option value="all">所有图片</Option>
+              </Select>
+
+              {applyScope === 'selected' && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
+                    选择目标图片：
+                  </Text>
+                  <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                    {photos.map((photo, index) => (
+                      <div key={photo.id} style={{ marginBottom: '4px' }}>
+                        <Checkbox
+                          checked={selectedPhotos.includes(photo.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPhotos(prev => [...prev, photo.id])
+                            } else {
+                              setSelectedPhotos(prev => prev.filter(id => id !== photo.id))
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize: '12px' }}>图片 {index + 1}</span>
+                        </Checkbox>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
+          {/* 贴纸状态显示 */}
           {stickers.length > 0 && (
-            <div style={{ marginTop: '12px', padding: '8px', background: '#fff', borderRadius: '4px' }}>
+            <div style={{ 
+              marginTop: '12px', 
+              padding: '8px', 
+              background: isCustomMode ? '#fff' : '#f6ffed', 
+              borderRadius: '4px',
+              border: isCustomMode ? '1px solid #d9d9d9' : '1px solid #b7eb8f'
+            }}>
               <Text type="secondary" style={{ fontSize: '11px' }}>
-                当前已添加 {stickers.length} 个贴纸
+                {isCustomMode ? 
+                  `已添加 ${stickers.length} 个贴纸，点击应用按钮生效` :
+                  `已添加 ${stickers.length} 个贴纸，已自动应用到所有图片`
+                }
               </Text>
             </div>
           )}
@@ -1766,16 +1877,21 @@ const ImageEditor = ({
 
                 {/* 贴纸操作按钮 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Button
-            type="primary"
-            icon={<CheckOutlined />}
-            onClick={handleApplyStickers}
-            size="large"
-            style={{ width: '100%', background: '#52c41a', borderColor: '#52c41a' }}
-            disabled={stickers.length === 0 || (applyScope === 'selected' && selectedPhotos.length === 0)}
-          >
-            应用贴纸装饰
-          </Button>
+          {/* 自定义模式下显示应用按钮 */}
+          {isCustomMode && (
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={handleApplyStickers}
+              size="large"
+              style={{ width: '100%', background: '#52c41a', borderColor: '#52c41a' }}
+              disabled={stickers.length === 0 || (applyScope === 'selected' && selectedPhotos.length === 0)}
+            >
+              应用贴纸装饰
+            </Button>
+          )}
+          
+          {/* 清除按钮始终显示 */}
           <Button
             icon={<UndoOutlined />}
             onClick={() => {
@@ -1785,6 +1901,12 @@ const ImageEditor = ({
               setEditingText(null)
               setApplyScope('all')
               setSelectedPhotos([])
+              
+              // 简易模式下，清除时也要应用到所有图片
+              if (!isCustomMode && onStickerApply) {
+                const targetPhotoIds = photos.map(p => p.id)
+                onStickerApply([], targetPhotoIds)
+              }
             }}
             size="large"
             style={{ width: '100%' }}
