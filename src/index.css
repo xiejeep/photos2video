@@ -157,6 +157,32 @@ body {
   min-width: 300px;
 }
 
+/* 图片选择器滚动条样式 */
+.photo-selector-scroll {
+  /* 隐藏默认滚动条但保持功能 */
+  scrollbar-width: thin;
+  scrollbar-color: #b7eb8f #f0f0f0;
+}
+
+.photo-selector-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.photo-selector-scroll::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.photo-selector-scroll::-webkit-scrollbar-thumb {
+  background: #b7eb8f;
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.photo-selector-scroll::-webkit-scrollbar-thumb:hover {
+  background: #95de64;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .ant-col {
@@ -165,5 +191,11 @@ body {
   
   .photo-item img {
     height: 100px;
+  }
+  
+  /* 移动端图片选择器调整 */
+  .photo-selector-scroll > div {
+    min-width: 100px !important;
+    height: 60px !important;
   }
 } 

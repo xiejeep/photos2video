@@ -132,11 +132,141 @@ export class VideoGenerator {
           this.ctx.fillText(effects.textOverlay, x, y)
         }
 
+        // 绘制贴纸
+        if (photo.stickers && photo.stickers.length > 0) {
+          this.ctx.globalCompositeOperation = 'source-over'
+          this.ctx.filter = 'none'
+          
+          // 计算图片在canvas中的实际显示区域，用于贴纸位置映射
+          const imageDisplayInfo = { drawWidth, drawHeight, drawX, drawY }
+          
+          for (const sticker of photo.stickers) {
+            this.drawSticker(sticker, imageDisplayInfo)
+          }
+        }
+
         resolve()
       }
       
       img.src = photo.editedUrl || photo.url
     })
+  }
+
+  // 绘制单个贴纸
+  drawSticker(sticker, imageDisplayInfo) {
+    const { drawWidth, drawHeight, drawX, drawY } = imageDisplayInfo
+    
+    // 将贴纸相对位置转换为canvas绝对位置
+    // 贴纸位置是相对于图片编辑器视口中心的像素偏移
+    // 需要转换为相对于实际图片显示区域的位置
+    
+    // 假设编辑器视口尺寸（这应该与ImageEditor中的计算一致）
+    const editorMaxWidth = 600
+    const editorMaxHeight = 400
+    const aspectRatio = drawWidth / drawHeight
+    
+    let editorWidth, editorHeight
+    if (aspectRatio > editorMaxWidth / editorMaxHeight) {
+      editorWidth = editorMaxWidth
+      editorHeight = editorMaxWidth / aspectRatio
+    } else {
+      editorHeight = editorMaxHeight
+      editorWidth = editorMaxHeight * aspectRatio
+    }
+    
+    // 将编辑器中的像素偏移转换为图片显示区域的绝对位置
+    const stickerX = drawX + drawWidth / 2 + (sticker.x / editorWidth) * drawWidth
+    const stickerY = drawY + drawHeight / 2 + (sticker.y / editorHeight) * drawHeight
+    
+    // 计算贴纸尺寸（基于图片显示尺寸）
+    const baseStickerSize = Math.min(drawWidth, drawHeight) * 0.1 // 基础尺寸为图片较小边的10%
+    const stickerSize = baseStickerSize * (sticker.scale || 1)
+    
+    this.ctx.save()
+    
+    // 移动到贴纸中心点
+    this.ctx.translate(stickerX, stickerY)
+    
+    // 应用旋转
+    if (sticker.rotation) {
+      this.ctx.rotate((sticker.rotation * Math.PI) / 180)
+    }
+    
+    if (sticker.text) {
+      // 绘制文字贴纸
+      this.ctx.textAlign = 'center'
+      this.ctx.textBaseline = 'middle'
+      
+      // 设置字体
+      // 从style中提取字体大小，如果没有则使用默认计算
+      let fontSize = Math.max(12, stickerSize * 0.3)
+      if (sticker.style && sticker.style.fontSize) {
+        fontSize = parseInt(sticker.style.fontSize) * (sticker.scale || 1)
+      }
+      
+      let fontStyle = ''
+      
+      // 从style中提取字体样式
+      if (sticker.style && sticker.style.fontWeight === 'bold') fontStyle += 'bold '
+      if (sticker.bold) fontStyle += 'bold '
+      if (sticker.italic) fontStyle += 'italic '
+      
+      // 从style中提取字体系列
+      const fontFamily = (sticker.style && sticker.style.fontFamily) || sticker.fontFamily || 'Arial'
+      
+      this.ctx.font = `${fontStyle}${fontSize}px ${fontFamily}`
+      
+      // 设置颜色
+      const color = (sticker.style && sticker.style.color) || sticker.color || '#000000'
+      this.ctx.fillStyle = color
+      
+      // 绘制文字效果
+      if (sticker.shadow) {
+        this.ctx.shadowColor = 'rgba(0,0,0,0.5)'
+        this.ctx.shadowBlur = 2
+        this.ctx.shadowOffsetX = 1
+        this.ctx.shadowOffsetY = 1
+      }
+      
+      // 绘制文字
+      this.ctx.fillText(sticker.content || sticker.text || sticker.emoji, 0, 0)
+      
+      // 绘制文字装饰
+      if (sticker.underline || sticker.strikethrough) {
+        const textWidth = this.ctx.measureText(sticker.content || sticker.text || sticker.emoji).width
+        this.ctx.strokeStyle = color
+        this.ctx.lineWidth = Math.max(1, fontSize * 0.05)
+        
+        if (sticker.underline) {
+          this.ctx.beginPath()
+          this.ctx.moveTo(-textWidth / 2, fontSize * 0.3)
+          this.ctx.lineTo(textWidth / 2, fontSize * 0.3)
+          this.ctx.stroke()
+        }
+        
+        if (sticker.strikethrough) {
+          this.ctx.beginPath()
+          this.ctx.moveTo(-textWidth / 2, -fontSize * 0.1)
+          this.ctx.lineTo(textWidth / 2, -fontSize * 0.1)
+          this.ctx.stroke()
+        }
+      }
+      
+      // 清除阴影
+      this.ctx.shadowColor = 'transparent'
+      this.ctx.shadowBlur = 0
+      this.ctx.shadowOffsetX = 0
+      this.ctx.shadowOffsetY = 0
+      
+    } else {
+      // 绘制表情贴纸
+      this.ctx.textAlign = 'center'
+      this.ctx.textBaseline = 'middle'
+      this.ctx.font = `${stickerSize}px Arial`
+      this.ctx.fillText(sticker.emoji, 0, 0)
+    }
+    
+    this.ctx.restore()
   }
 
   // 生成视频
@@ -310,7 +440,7 @@ export class VideoGenerator {
       const checkComplete = () => {
         loadCount++
         if (loadCount === 2) {
-          this.applyTransitionEffect(loadedImages.current, loadedImages.next, effects, progress)
+          this.applyTransitionEffect(loadedImages.current, loadedImages.next, effects, progress, currentPhoto, nextPhoto)
           resolve()
         }
       }
@@ -336,7 +466,7 @@ export class VideoGenerator {
   }
 
   // 应用转场效果
-  applyTransitionEffect(currentImg, nextImg, effects, progress) {
+  applyTransitionEffect(currentImg, nextImg, effects, progress, currentPhoto, nextPhoto) {
     // 清空画布
     this.ctx.fillStyle = '#000000'
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
@@ -476,6 +606,29 @@ export class VideoGenerator {
       this.ctx.strokeText(effects.textOverlay, x, y)
       this.ctx.fillText(effects.textOverlay, x, y)
     }
+
+    // 绘制转场中的贴纸
+    this.ctx.globalCompositeOperation = 'source-over'
+    this.ctx.filter = 'none'
+    
+    // 绘制当前照片的贴纸（透明度递减）
+    if (currentPhoto && currentPhoto.stickers && currentPhoto.stickers.length > 0) {
+      this.ctx.globalAlpha = 1 - progress
+      for (const sticker of currentPhoto.stickers) {
+        this.drawSticker(sticker, currentInfo)
+      }
+    }
+    
+    // 绘制下一张照片的贴纸（透明度递增）
+    if (nextPhoto && nextPhoto.stickers && nextPhoto.stickers.length > 0) {
+      this.ctx.globalAlpha = progress
+      for (const sticker of nextPhoto.stickers) {
+        this.drawSticker(sticker, nextInfo)
+      }
+    }
+    
+    // 恢复透明度
+    this.ctx.globalAlpha = 1
   }
 
   // 获取支持的MIME类型（增强版）

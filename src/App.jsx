@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Layout, Typography, Row, Col, Card, Steps, Button, message } from 'antd'
 import { 
   PictureOutlined, 
@@ -15,6 +15,7 @@ import AudioPanel from './components/AudioPanel'
 import PreviewPanel from './components/PreviewPanel'
 import ExportPanel from './components/ExportPanel'
 import LoadingOverlay from './components/LoadingOverlay'
+import ImageEditor from './components/ImageEditor'
 
 // 导入视频生成器
 import { VideoGenerator } from './utils/videoGenerator'
@@ -33,11 +34,14 @@ function App() {
     transition: 'fade',
     duration: 3,
     textOverlay: '',
-    filter: 'none'
+    filter: 'none',
+    brightness: 0,
+    contrast: 0
   })
   const [previewAspectRatio, setPreviewAspectRatio] = useState('16:9')
   const [isLoading, setIsLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('')
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
 
   const steps = [
     {
@@ -46,8 +50,8 @@ function App() {
       icon: <PictureOutlined />,
     },
     {
-      title: '创意制作',
-      description: '设置特效、比例、背景音乐',
+      title: '图片编辑',
+      description: '预览特效、编辑照片、添加贴纸',
       icon: <ToolOutlined />,
     },
     {
@@ -111,6 +115,16 @@ function App() {
 
   // 处理图片编辑
   const handlePhotoEdit = async (photoId, transform, aspectRatio, editResult = null) => {
+    // 处理图片切换操作
+    if (editResult?.action === 'switchPhoto') {
+      const selectedPhotoIndex = photos.filter(p => selectedPhotos.includes(p.id))
+        .findIndex(p => p.id === editResult.photoId)
+      if (selectedPhotoIndex !== -1) {
+        setCurrentPhotoIndex(selectedPhotoIndex)
+      }
+      return
+    }
+
     const photo = photos.find(p => p.id === photoId)
     if (!photo) return
 
@@ -248,6 +262,21 @@ function App() {
     }
   }
 
+  // 使用useMemo缓存ImageEditor相关的计算，避免不必要的重新渲染
+  const editorData = useMemo(() => {
+    if (selectedPhotos.length === 0) return null
+    
+    const selectedPhotoObjects = photos.filter(photo => selectedPhotos.includes(photo.id))
+    const currentPhoto = selectedPhotoObjects[currentPhotoIndex]
+    
+    return {
+      imageUrl: currentPhoto?.editedUrl || currentPhoto?.url,
+      initialTransform: currentPhoto?.transform || { scale: 1, rotation: 0, x: 0, y: 0 },
+      currentPhotoId: currentPhoto?.id,
+      photos: selectedPhotoObjects
+    }
+  }, [photos, selectedPhotos, currentPhotoIndex])
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
@@ -269,29 +298,51 @@ function App() {
       case 1:
         return (
           <div>
-            {/* 上方：视频实时预览和背景音乐并排 */}
-            <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
+            <Row gutter={[24, 24]}>
               <Col xs={24}>
-                <div style={{ background: '#fafafa', padding: '20px', borderRadius: '8px' }}>
-                  <PreviewPanel 
-                    photos={photos.filter(photo => selectedPhotos.includes(photo.id))}
-                    effects={effects}
-                    audioFile={audioFile}
-                    onAspectRatioChange={handleAspectRatioChange}
-                    onPhotoEdit={handlePhotoEdit}
-                  />
-                </div>
+                <Card 
+                  title="🎨 图片编辑器 - 预览特效、编辑照片、添加贴纸"
+                  style={{ minHeight: '600px' }}
+                >
+                  {editorData ? (
+                    <ImageEditor
+                      visible={true}
+                      onCancel={() => {}}
+                      onConfirm={handlePhotoEdit}
+                      imageUrl={editorData.imageUrl}
+                      initialTransform={editorData.initialTransform}
+                      aspectRatio={16/9}
+                      photos={editorData.photos}
+                      currentPhotoId={editorData.currentPhotoId}
+                      onStickerApply={(stickers, targetPhotoIds) => {
+                        targetPhotoIds.forEach(photoId => {
+                          handlePhotoEdit(photoId, null, null, { stickers, type: 'sticker' })
+                        })
+                      }}
+                      effects={effects}
+                      onEffectsChange={handleEffectsChange}
+                    />
+                  ) : (
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      height: '400px',
+                      color: '#999'
+                    }}>
+                      <PictureOutlined style={{ fontSize: '64px', marginBottom: '16px' }} />
+                      <Text type="secondary">请先在第一步选择要编辑的照片</Text>
+                    </div>
+                  )}
+                </Card>
               </Col>
             </Row>
             
-            {/* 下方：视觉特效面板占据全宽 */}
-            <Row>
+            {/* 音频设置面板 */}
+            <Row style={{ marginTop: '24px' }}>
               <Col xs={24}>
-                <EffectsPanel 
-                  effects={effects}
-                  onChange={handleEffectsChange}
-                  photos={photos}
-                  selectedPhotos={selectedPhotos}
+                <AudioPanel 
                   audioFile={audioFile}
                   onAudioUpload={handleAudioUpload}
                 />

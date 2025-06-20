@@ -21,6 +21,18 @@ import {
 const { Text } = Typography
 const { Option } = Select
 
+// 滤镜选项
+const filterOptions = [
+  { label: '无滤镜', value: 'none' },
+  { label: '复古', value: 'vintage' },
+  { label: '黑白', value: 'grayscale' },
+  { label: '暖色调', value: 'warm' },
+  { label: '冷色调', value: 'cool' },
+  { label: '高对比度', value: 'contrast' },
+  { label: '柔光', value: 'soft' },
+  { label: '鲜艳', value: 'vivid' },
+]
+
 // 精简字体库
 const fontFamilies = [
   // 常用系统字体
@@ -105,7 +117,10 @@ const ImageEditor = ({
   aspectRatio = 16/9,
   photos = [],
   currentPhotoId,
-  onStickerApply
+  onStickerApply,
+  // 新增的特效相关props
+  effects = {},
+  onEffectsChange
 }) => {
   // 变换状态
   const [transform, setTransform] = useState({
@@ -140,21 +155,69 @@ const ImageEditor = ({
   const [applyScope, setApplyScope] = useState('all') // 'current' | 'selected' | 'all'
   const [selectedPhotos, setSelectedPhotos] = useState([])
 
+  // 处理应用范围变化
+  const handleApplyScopeChange = (newScope) => {
+    setApplyScope(newScope)
+    
+    // 当应用范围改变时，重新应用当前特效设置
+    let targetPhotoIds = []
+    
+    switch (newScope) {
+      case 'current':
+        targetPhotoIds = [currentPhotoId]
+        break
+      case 'selected':
+        targetPhotoIds = selectedPhotos
+        break
+      case 'all':
+        targetPhotoIds = photos.map(p => p.id)
+        break
+    }
+    
+    // 重新应用当前特效到新的目标范围
+    if (onEffectsChange && targetPhotoIds.length > 0) {
+      onEffectsChange(currentEffects, targetPhotoIds, newScope)
+    }
+  }
+
+  // 特效状态
+  const [currentEffects, setCurrentEffects] = useState({
+    filter: 'none',
+    brightness: 0,
+    contrast: 0,
+    ...effects
+  })
+
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
+  const lastPhotoIdRef = useRef(null)
+  const initializedRef = useRef(false)
 
-  // 重置变换状态和初始化贴纸状态
+  // 当组件初始化或图片切换时设置变换状态
+  useEffect(() => {
+    if (visible && currentPhotoId) {
+      // 检查是否是组件初始化或图片切换
+      const isPhotoChange = lastPhotoIdRef.current !== currentPhotoId
+      const isInitialization = !initializedRef.current
+      
+      if (isInitialization || isPhotoChange) {
+        // 使用传入的initialTransform，如果没有则使用默认值
+        setTransform({
+          scale: initialTransform?.scale || 1,
+          rotation: initialTransform?.rotation || 0,
+          x: initialTransform?.x || 0,
+          y: initialTransform?.y || 0
+        })
+        
+        lastPhotoIdRef.current = currentPhotoId
+        initializedRef.current = true
+      }
+    }
+  }, [visible, currentPhotoId, initialTransform]) // 添加initialTransform依赖，确保图片切换时使用正确的变换状态
+
+  // 单独处理贴纸状态变化，不影响变换状态
   useEffect(() => {
     if (visible) {
-      // 设置当前图片的变换状态（可能已经被编辑过）
-      setTransform({
-        scale: 1,
-        rotation: 0,
-        x: 0,
-        y: 0,
-        ...initialTransform
-      })
-      
       // 初始化当前图片的贴纸状态
       const currentPhoto = photos.find(p => p.id === currentPhotoId)
       setStickers(currentPhoto?.stickers || [])
@@ -163,7 +226,19 @@ const ImageEditor = ({
       setApplyScope('all')
       setSelectedPhotos([])
     }
-  }, [visible, initialTransform, currentPhotoId, photos])
+  }, [visible, currentPhotoId, photos])
+
+  // 仅在组件首次显示时初始化特效状态
+  useEffect(() => {
+    if (visible) {
+      setCurrentEffects({
+        filter: 'none',
+        brightness: 0,
+        contrast: 0,
+        ...effects
+      })
+    }
+  }, [visible]) // 移除effects依赖，避免外部effects变化导致重置
 
   // 添加贴纸
   const addSticker = (stickerData) => {
@@ -244,30 +319,66 @@ const ImageEditor = ({
     setDraggedSticker(null)
   }, [])
 
-  // 缩放操作
+  // 缩放操作 - 立即应用
   const handleZoom = useCallback((delta) => {
-    setTransform(prev => ({
-      ...prev,
-      scale: Math.max(0.1, Math.min(5, prev.scale + delta))
-    }))
-  }, [])
+    const newTransform = {
+      ...transform,
+      scale: Math.max(0.1, Math.min(5, transform.scale + delta))
+    }
+    setTransform(newTransform)
+    
+    // 立即应用
+    setTimeout(() => {
+      const result = {
+        transform: newTransform,
+        stickers: [],
+        applyScope: 'current',
+        selectedPhotos: []
+      }
+      onConfirm(result)
+    }, 100) // 短暂延迟确保状态更新
+  }, [transform, onConfirm])
 
-  // 旋转操作
+  // 旋转操作 - 立即应用
   const handleRotation = useCallback((delta) => {
-    setTransform(prev => ({
-      ...prev,
-      rotation: (prev.rotation + delta) % 360
-    }))
-  }, [])
+    const newTransform = {
+      ...transform,
+      rotation: (transform.rotation + delta) % 360
+    }
+    setTransform(newTransform)
+    
+    // 立即应用
+    setTimeout(() => {
+      const result = {
+        transform: newTransform,
+        stickers: [],
+        applyScope: 'current',
+        selectedPhotos: []
+      }
+      onConfirm(result)
+    }, 100) // 短暂延迟确保状态更新
+  }, [transform, onConfirm])
 
-  // 重置位置
+  // 重置位置 - 立即应用
   const handleCenter = useCallback(() => {
-    setTransform(prev => ({
-      ...prev,
+    const newTransform = {
+      ...transform,
       x: 0,
       y: 0
-    }))
-  }, [])
+    }
+    setTransform(newTransform)
+    
+    // 立即应用
+    setTimeout(() => {
+      const result = {
+        transform: newTransform,
+        stickers: [],
+        applyScope: 'current',
+        selectedPhotos: []
+      }
+      onConfirm(result)
+    }, 100) // 短暂延迟确保状态更新
+  }, [transform, onConfirm])
 
   // 重置所有变换到原始状态
   const handleReset = useCallback(() => {
@@ -286,14 +397,14 @@ const ImageEditor = ({
   // 鼠标移动拖拽
   const handleMouseMove = useCallback((e) => {
     if (isDragging) {
-      const deltaX = e.clientX - dragStart.x
-      const deltaY = e.clientY - dragStart.y
-      
-      setTransform(prev => ({
-        ...prev,
-        x: transformStart.x + deltaX,
-        y: transformStart.y + deltaY
-      }))
+    const deltaX = e.clientX - dragStart.x
+    const deltaY = e.clientY - dragStart.y
+    
+    setTransform(prev => ({
+      ...prev,
+      x: transformStart.x + deltaX,
+      y: transformStart.y + deltaY
+    }))
     } else if (draggedSticker) {
       handleStickerDrag(e)
     }
@@ -301,16 +412,45 @@ const ImageEditor = ({
 
   // 鼠标抬起结束拖拽
   const handleMouseUp = useCallback(() => {
+    if (isDragging) {
+      // 图片拖拽结束后立即应用
+      setTimeout(() => {
+        const result = {
+          transform,
+          stickers: [],
+          applyScope: 'current',
+          selectedPhotos: []
+        }
+        onConfirm(result)
+      }, 100)
+    }
     setIsDragging(false)
     handleStickerDragEnd()
-  }, [handleStickerDragEnd])
+  }, [isDragging, transform, onConfirm, handleStickerDragEnd])
 
-  // 滚轮缩放
+  // 滚轮缩放 - 添加防抖
+  const wheelTimeoutRef = useRef(null)
   const handleWheel = useCallback((e) => {
     e.preventDefault()
     const delta = e.deltaY > 0 ? -0.1 : 0.1
-    handleZoom(delta)
-  }, [handleZoom])
+    const newScale = Math.max(0.1, Math.min(5, transform.scale + delta))
+    
+    setTransform(prev => ({ ...prev, scale: newScale }))
+    
+    // 防抖处理，滚轮停止后才应用
+    if (wheelTimeoutRef.current) {
+      clearTimeout(wheelTimeoutRef.current)
+    }
+    wheelTimeoutRef.current = setTimeout(() => {
+      const result = {
+        transform: { ...transform, scale: newScale },
+        stickers: [],
+        applyScope: 'current',
+        selectedPhotos: []
+      }
+      onConfirm(result)
+    }, 300) // 300ms防抖
+  }, [transform, onConfirm])
 
   // 添加全局事件监听
   useEffect(() => {
@@ -325,18 +465,7 @@ const ImageEditor = ({
     }
   }, [isDragging, draggedSticker, handleMouseMove, handleMouseUp])
 
-  // 应用图片编辑（只作用于当前图片）
-  const handleApplyImageEdit = () => {
-    const result = {
-      transform,
-      stickers: [], // 图片编辑不包含贴纸
-      applyScope: 'current',
-      selectedPhotos: []
-    }
-    
-    onConfirm(result)
-    message.success('图片编辑已应用到当前图片')
-  }
+
 
   // 应用贴纸（可以选择范围）
   const handleApplyStickers = () => {
@@ -365,6 +494,32 @@ const ImageEditor = ({
     }
   }
 
+  // 处理特效变化
+  const handleEffectChange = (field, value) => {
+    const newEffects = { ...currentEffects, [field]: value }
+    setCurrentEffects(newEffects)
+    
+    // 立即应用特效，根据当前应用范围
+    let targetPhotoIds = []
+    
+    switch (applyScope) {
+      case 'current':
+        targetPhotoIds = [currentPhotoId]
+        break
+      case 'selected':
+        targetPhotoIds = selectedPhotos
+        break
+      case 'all':
+        targetPhotoIds = photos.map(p => p.id)
+        break
+    }
+    
+    // 实时更新全局特效并应用到选定的图片
+    if (onEffectsChange) {
+      onEffectsChange(newEffects, targetPhotoIds, applyScope)
+    }
+  }
+
   // 计算显示区域样式
   const getViewportStyle = () => {
     // 编辑器主区域尺寸
@@ -386,6 +541,50 @@ const ImageEditor = ({
     }
   }
 
+  // 生成CSS滤镜字符串
+  const getFilterStyle = () => {
+    let filters = []
+    
+    // 亮度
+    if (currentEffects.brightness !== 0) {
+      const brightness = 1 + (currentEffects.brightness / 100)
+      filters.push(`brightness(${brightness})`)
+    }
+    
+    // 对比度
+    if (currentEffects.contrast !== 0) {
+      const contrast = 1 + (currentEffects.contrast / 100)
+      filters.push(`contrast(${contrast})`)
+    }
+    
+    // 滤镜效果
+    switch (currentEffects.filter) {
+      case 'grayscale':
+        filters.push('grayscale(100%)')
+        break
+      case 'vintage':
+        filters.push('sepia(60%) saturate(120%) hue-rotate(15deg)')
+        break
+      case 'warm':
+        filters.push('hue-rotate(15deg) saturate(110%)')
+        break
+      case 'cool':
+        filters.push('hue-rotate(-15deg) saturate(110%)')
+        break
+      case 'contrast':
+        filters.push('contrast(140%)')
+        break
+      case 'soft':
+        filters.push('blur(0.5px) brightness(1.1)')
+        break
+      case 'vivid':
+        filters.push('saturate(150%) contrast(110%)')
+        break
+    }
+    
+    return filters.length > 0 ? filters.join(' ') : 'none'
+  }
+
   // 计算图片变换样式
   const getImageStyle = () => {
     return {
@@ -396,7 +595,9 @@ const ImageEditor = ({
       transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale}) rotate(${transform.rotation}deg)`,
       transformOrigin: 'center center',
       cursor: isDragging ? 'grabbing' : 'grab',
-      userSelect: 'none'
+      userSelect: 'none',
+      filter: getFilterStyle(),
+      transition: 'filter 0.3s ease'
     }
   }
 
@@ -427,6 +628,7 @@ const ImageEditor = ({
   return (
     <div style={{ 
       display: 'flex',
+      flexDirection: 'column',
       gap: '20px',
       width: '100%',
       padding: '20px',
@@ -436,8 +638,8 @@ const ImageEditor = ({
       marginTop: '16px'
     }}>
       
-      {/* 左侧：编辑区域 */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 上方：图片编辑器 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         
         {/* 标题 */}
         <div style={{ 
@@ -457,20 +659,131 @@ const ImageEditor = ({
           />
         </div>
         
-        {/* 编辑区域 */}
-        <div
-          style={{
-            position: 'relative',
-            alignSelf: 'center',
-            width: '100%',
-            maxWidth: '700px',
-            height: '400px',
-            background: '#1a1a1a',
+        {/* 编辑区域容器 - 水平布局 */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '16px', 
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          width: '100%'
+        }}>
+          {/* 左侧：旋转缩放控制面板 */}
+          <div style={{ 
+            background: '#fafafa', 
+            padding: '16px', 
             borderRadius: '8px',
-            overflow: 'hidden'
-          }}
-          onWheel={handleWheel}
-        >
+            width: '200px',
+            flexShrink: 0
+          }}>
+            <Text strong style={{ display: 'block', marginBottom: '16px', textAlign: 'center' }}>
+              🎛️ 图片控制
+            </Text>
+            
+            {/* 缩放控制 */}
+            <div style={{ marginBottom: '20px' }}>
+              <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
+                图片缩放 ({Math.round(transform.scale * 100)}%)
+              </Text>
+              <div style={{ marginBottom: '8px' }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Button
+                      icon={<ZoomOutOutlined />}
+                      onClick={() => handleZoom(-0.1)}
+                      disabled={transform.scale <= 0.1}
+                      size="small"
+                    />
+                    <Button
+                      icon={<ZoomInOutlined />}
+                      onClick={() => handleZoom(0.1)}
+                      disabled={transform.scale >= 5}
+                      size="small"
+                    />
+                  </div>
+                  <Slider
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    value={transform.scale}
+                    onChange={(value) => {
+                      const newTransform = { ...transform, scale: value }
+                      setTransform(newTransform)
+                    }}
+                    onAfterChange={(value) => {
+                      // 滑块拖拽结束后立即应用
+                      const newTransform = { ...transform, scale: value }
+                      const result = {
+                        transform: newTransform,
+                        stickers: [],
+                        applyScope: 'current',
+                        selectedPhotos: []
+                      }
+                      onConfirm(result)
+                    }}
+                    style={{ width: '100%' }}
+                  />
+                </Space>
+              </div>
+            </div>
+
+            {/* 旋转控制 */}
+            <div style={{ marginBottom: '20px' }}>
+              <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
+                图片旋转 ({transform.rotation}°)
+              </Text>
+              <div style={{ marginBottom: '8px' }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Button
+                      icon={<RotateLeftOutlined />}
+                      onClick={() => handleRotation(-15)}
+                      size="small"
+                    />
+                    <Button
+                      icon={<RotateRightOutlined />}
+                      onClick={() => handleRotation(15)}
+                      size="small"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleCenter}
+                    size="small"
+                    style={{ width: '100%' }}
+                  >
+                    居中
+                  </Button>
+                </Space>
+              </div>
+            </div>
+
+            {/* 重置按钮 */}
+            <Button
+              icon={<UndoOutlined />}
+              onClick={() => {
+                // 重置图片编辑状态到原始状态
+                setTransform({ ...originalTransform.current })
+              }}
+              size="small"
+              style={{ width: '100%' }}
+              title="重置图片编辑到原始未编辑状态"
+            >
+              重置编辑
+            </Button>
+          </div>
+
+          {/* 中间：图片编辑区域 */}
+          <div
+            style={{
+              position: 'relative',
+              width: '700px',
+              height: '400px',
+              background: '#1a1a1a',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              flexShrink: 0
+            }}
+            onWheel={handleWheel}
+          >
           {/* 图片容器 - 完全自由的空间 */}
           <div
             ref={containerRef}
@@ -722,71 +1035,163 @@ const ImageEditor = ({
             })()}
           </div>
         </div>
+        </div>
 
-        {/* 基础控制面板 */}
+        {/* 图片选择器 - 与图片编辑区域等宽 */}
+        <div style={{ 
+          background: '#f6ffed', 
+          padding: '8px', 
+          borderRadius: '8px', 
+          border: '1px solid #b7eb8f', 
+          marginTop: '12px',
+          maxWidth: '700px',
+          alignSelf: 'center' 
+        }}>
+          {/* 水平滚动的图片选择器 */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              gap: '8px', 
+              overflowX: 'auto', 
+              paddingBottom: '4px',
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#b7eb8f #f0f0f0'
+            }}
+            className="photo-selector-scroll"
+          >
+            {photos.map((photo, index) => (
+              <div
+                key={photo.id}
+                style={{
+                  position: 'relative',
+                  flexShrink: 0,
+                  width: '80px',
+                  height: '60px',
+                  border: photo.id === currentPhotoId ? '3px solid #1890ff' : '1px solid #d9d9d9',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  background: '#fff',
+                  transition: 'all 0.2s ease',
+                  boxShadow: photo.id === currentPhotoId ? '0 4px 12px rgba(24, 144, 255, 0.3)' : '0 2px 6px rgba(0,0,0,0.1)'
+                }}
+                onClick={() => {
+                  // 切换到选中的图片
+                  if (onConfirm) {
+                    onConfirm(currentPhotoId, null, null, {
+                      action: 'switchPhoto',
+                      photoId: photo.id
+                    })
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  if (photo.id !== currentPhotoId) {
+                    e.target.style.transform = 'scale(1.05)'
+                    e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (photo.id !== currentPhotoId) {
+                    e.target.style.transform = 'scale(1)'
+                    e.target.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                  }
+                }}
+              >
+                <img
+                  src={photo.editedUrl || photo.url}
+                  alt={`图片 ${index + 1}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block'
+                  }}
+                />
+                
+                {/* 图片序号 */}
+                <div style={{
+                  position: 'absolute',
+                  top: '2px',
+                  left: '2px',
+                  background: photo.id === currentPhotoId ? '#1890ff' : 'rgba(0,0,0,0.7)',
+                  color: 'white',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  padding: '2px 4px',
+                  borderRadius: '3px',
+                  minWidth: '16px',
+                  textAlign: 'center'
+                }}>
+                  {index + 1}
+                </div>
+                
+                {/* 当前编辑指示器 */}
+                {photo.id === currentPhotoId && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    left: '2px',
+                    background: '#1890ff',
+                    color: 'white',
+                    fontSize: '8px',
+                    padding: '1px 3px',
+                    borderRadius: '2px'
+                  }}>
+                    编辑中
+                  </div>
+                )}
+                
+                {/* 贴纸标识 */}
+                {photo.hasStickers && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    background: '#52c41a',
+                    color: 'white',
+                    fontSize: '8px',
+                    padding: '1px 3px',
+                    borderRadius: '2px'
+                  }}>
+                    贴纸
+                  </div>
+                )}
+                
+                {/* 编辑状态标识 */}
+                {photo.isEdited && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    right: '2px',
+                    background: '#fa8c16',
+                    color: 'white',
+                    fontSize: '8px',
+                    padding: '1px 3px',
+                    borderRadius: '2px'
+                  }}>
+                    已编辑
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          {/* 滚动提示 */}
+          {photos.length > 4 && (
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: '6px', textAlign: 'center' }}>
+              💡 可以左右滚动查看更多图片
+            </Text>
+          )}
+        </div>
+
+        {/* 贴纸控制面板 */}
         <div style={{ background: '#fafafa', padding: '16px', borderRadius: '8px' }}>
-          <Row gutter={[16, 16]}>
-            {/* 缩放控制 */}
-            <Col span={12}>
-              <Text strong>图片缩放 ({Math.round(transform.scale * 100)}%)</Text>
-              <div style={{ marginTop: '8px' }}>
-                <Space>
-                  <Button
-                    icon={<ZoomOutOutlined />}
-                    onClick={() => handleZoom(-0.1)}
-                    disabled={transform.scale <= 0.1}
-                    size="small"
-                  />
-                  <Slider
-                    min={0.1}
-                    max={5}
-                    step={0.1}
-                    value={transform.scale}
-                    onChange={(value) => setTransform(prev => ({ ...prev, scale: value }))}
-                    style={{ width: '120px' }}
-                  />
-                  <Button
-                    icon={<ZoomInOutlined />}
-                    onClick={() => handleZoom(0.1)}
-                    disabled={transform.scale >= 5}
-                    size="small"
-                  />
-                </Space>
-              </div>
-            </Col>
-
-            {/* 旋转控制 */}
-            <Col span={12}>
-              <Text strong>图片旋转 ({transform.rotation}°)</Text>
-              <div style={{ marginTop: '8px' }}>
-                <Space>
-                  <Button
-                    icon={<RotateLeftOutlined />}
-                    onClick={() => handleRotation(-15)}
-                    size="small"
-                  />
-                  <Button
-                    icon={<RotateRightOutlined />}
-                    onClick={() => handleRotation(15)}
-                    size="small"
-                  />
-                  <Button
-                    onClick={handleCenter}
-                    size="small"
-                  >
-                    居中
-                  </Button>
-                </Space>
-              </div>
-            </Col>
-          </Row>
-
           {/* 贴纸控制 */}
           {selectedSticker && (
             <>
               <Divider style={{ margin: '16px 0' }} />
               <Row gutter={[16, 16]}>
-                <Col span={12}>
+            <Col span={12}>
                   <Text strong>贴纸缩放</Text>
                   <div style={{ marginTop: '8px' }}>
                     <Slider
@@ -800,15 +1205,15 @@ const ImageEditor = ({
                 </Col>
                 <Col span={12}>
                   <Text strong>贴纸旋转</Text>
-                  <div style={{ marginTop: '8px' }}>
-                    <Space>
-                      <Button
+              <div style={{ marginTop: '8px' }}>
+                <Space>
+                  <Button
                         icon={<RotateLeftOutlined />}
                         onClick={() => {
                           const currentSticker = stickers.find(s => s.id === selectedSticker)
                           updateSticker(selectedSticker, { rotation: (currentSticker?.rotation || 0) - 15 })
                         }}
-                        size="small"
+                    size="small"
                       />
                       <Button
                         icon={<RotateRightOutlined />}
@@ -883,16 +1288,16 @@ const ImageEditor = ({
                           style={{ width: '100%' }}
                         >
                           {editingText === selectedSticker ? '确认' : '编辑内容'}
-                        </Button>
-                      </div>
-                    </Col>
+                  </Button>
+              </div>
+            </Col>
                   </Row>
-                  
+
                   {/* 字体选择和样式 */}
                   <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
-                    <Col span={12}>
+            <Col span={12}>
                       <Text strong>字体选择</Text>
-                      <div style={{ marginTop: '8px' }}>
+              <div style={{ marginTop: '8px' }}>
                         <Select
                           key={`font-${selectedSticker}`}
                           value={stickers.find(s => s.id === selectedSticker)?.style?.fontFamily || '"Microsoft YaHei", sans-serif'}
@@ -927,8 +1332,8 @@ const ImageEditor = ({
                     <Col span={12}>
                       <Text strong>字体样式</Text>
                       <div style={{ marginTop: '8px', display: 'flex', gap: '4px' }}>
-                        <Button
-                          size="small"
+                  <Button
+                    size="small"
                           type={stickers.find(s => s.id === selectedSticker)?.style?.fontWeight === 'bold' ? 'primary' : 'default'}
                           onClick={() => {
                             const currentSticker = stickers.find(s => s.id === selectedSticker)
@@ -943,7 +1348,7 @@ const ImageEditor = ({
                           style={{ flex: 1, fontSize: '10px', fontWeight: 'bold' }}
                         >
                           粗体
-                        </Button>
+                  </Button>
                         <Button
                           size="small"
                           type={stickers.find(s => s.id === selectedSticker)?.style?.fontStyle === 'italic' ? 'primary' : 'default'}
@@ -961,10 +1366,10 @@ const ImageEditor = ({
                         >
                           斜体
                         </Button>
-                      </div>
-                    </Col>
-                  </Row>
-                  
+              </div>
+            </Col>
+          </Row>
+
                   {/* 文字效果 */}
                   <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
                     <Col span={24}>
@@ -1029,13 +1434,90 @@ const ImageEditor = ({
             </>
           )}
         </div>
+
       </div>
 
-      {/* 右侧：贴纸选择和应用设置 */}
-      <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 下方：特效控制、贴纸选择和应用设置（改为水平布局） */}
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        
+        {/* 特效控制 */}
+        <div style={{ background: '#fff1f0', padding: '16px', borderRadius: '8px', flex: '1', minWidth: '300px' }}>
+          <Text strong style={{ display: 'block', marginBottom: '12px' }}>🎨 视觉特效</Text>
+          
+          {/* 滤镜选择 */}
+          <div style={{ marginBottom: '16px' }}>
+            <Text strong style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>滤镜效果</Text>
+            <Select
+              value={currentEffects.filter}
+              onChange={(value) => handleEffectChange('filter', value)}
+              style={{ width: '100%' }}
+              size="small"
+            >
+              {filterOptions.map(option => (
+                <Option key={option.value} value={option.value}>
+                  {option.label}
+                </Option>
+              ))}
+            </Select>
+          </div>
+          
+          {/* 亮度调节 */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <Text strong style={{ fontSize: '12px' }}>亮度</Text>
+              <Text type="secondary" style={{ fontSize: '11px' }}>{currentEffects.brightness}</Text>
+            </div>
+            <Slider
+              min={-50}
+              max={50}
+              value={currentEffects.brightness}
+              onChange={(value) => handleEffectChange('brightness', value)}
+              size="small"
+              marks={{
+                '-50': '暗',
+                0: '标准',
+                50: '亮'
+              }}
+              step={5}
+            />
+          </div>
+          
+          {/* 对比度调节 */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <Text strong style={{ fontSize: '12px' }}>对比度</Text>
+              <Text type="secondary" style={{ fontSize: '11px' }}>{currentEffects.contrast}</Text>
+            </div>
+            <Slider
+              min={-50}
+              max={50}
+              value={currentEffects.contrast}
+              onChange={(value) => handleEffectChange('contrast', value)}
+              size="small"
+              marks={{
+                '-50': '低',
+                0: '标准',
+                50: '高'
+              }}
+              step={5}
+            />
+          </div>
+
+          {/* 特效应用说明 */}
+          <div style={{ 
+            padding: '8px', 
+            background: '#e6f7ff', 
+            borderRadius: '4px', 
+            border: '1px solid #91d5ff'
+          }}>
+            <Text type="secondary" style={{ fontSize: '11px' }}>
+              💡 调整特效会立即应用到{applyScope === 'all' ? '所有图片' : applyScope === 'selected' ? '选中图片' : '当前图片'}
+            </Text>
+          </div>
+        </div>
         
         {/* 贴纸选择 */}
-        <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '8px', flex: 1 }}>
+        <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '8px', flex: '1', minWidth: '300px' }}>
           <Text strong style={{ display: 'block', marginBottom: '12px' }}>选择贴纸</Text>
           
           <Tabs
@@ -1095,13 +1577,18 @@ const ImageEditor = ({
           />
         </div>
 
-        {/* 贴纸应用范围设置 */}
-        <div style={{ background: '#e6f7ff', padding: '16px', borderRadius: '8px' }}>
-          <Text strong style={{ display: 'block', marginBottom: '12px' }}>贴纸应用范围</Text>
+
+
+        {/* 应用范围设置 */}
+        <div style={{ background: '#e6f7ff', padding: '16px', borderRadius: '8px', flex: '0 0 280px' }}>
+          <Text strong style={{ display: 'block', marginBottom: '8px' }}>🎯 应用范围</Text>
+          <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginBottom: '12px' }}>
+            设置特效和贴纸的应用范围
+          </Text>
           
           <Select
             value={applyScope}
-            onChange={setApplyScope}
+            onChange={handleApplyScopeChange}
             style={{ width: '100%', marginBottom: '12px' }}
             size="small"
           >
@@ -1113,10 +1600,10 @@ const ImageEditor = ({
           {applyScope === 'selected' && (
             <div>
               <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>
-                选择要应用贴纸的图片：
+                选择目标图片：
               </Text>
               <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
-                {photos.map(photo => (
+                {photos.map((photo, index) => (
                   <div key={photo.id} style={{ marginBottom: '4px' }}>
                     <Checkbox
                       checked={selectedPhotos.includes(photo.id)}
@@ -1128,7 +1615,7 @@ const ImageEditor = ({
                         }
                       }}
                     >
-                      <span style={{ fontSize: '12px' }}>{photo.name}</span>
+                      <span style={{ fontSize: '12px' }}>图片 {index + 1}</span>
                     </Checkbox>
                   </div>
                 ))}
@@ -1145,23 +1632,8 @@ const ImageEditor = ({
           )}
         </div>
 
-        {/* 操作按钮 */}
+                {/* 贴纸操作按钮 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Button
-            type="primary"
-            icon={<CheckOutlined />}
-            onClick={handleApplyImageEdit}
-            size="large"
-            style={{ width: '100%' }}
-            disabled={
-              transform.scale === (initialTransform?.scale || 1) && 
-              transform.rotation === (initialTransform?.rotation || 0) && 
-              transform.x === (initialTransform?.x || 0) && 
-              transform.y === (initialTransform?.y || 0)
-            }
-          >
-            应用图片编辑
-          </Button>
           <Button
             type="primary"
             icon={<CheckOutlined />}
@@ -1172,41 +1644,25 @@ const ImageEditor = ({
           >
             应用贴纸装饰
           </Button>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Button
-              icon={<UndoOutlined />}
-              onClick={() => {
-                // 重置图片编辑状态到原始状态
-                setTransform({ ...originalTransform.current })
-              }}
-              size="large"
-              style={{ flex: 1 }}
-              title="重置图片编辑到原始未编辑状态"
-            >
-              重置图片编辑
-            </Button>
-            <Button
-              icon={<UndoOutlined />}
-              onClick={() => {
-                // 重置贴纸相关状态
-                setStickers([])
-                setSelectedSticker(null)
-                setEditingText(null)
-                setApplyScope('all')
-                setSelectedPhotos([])
-              }}
-              size="large"
-              style={{ flex: 1 }}
-              title="清除所有贴纸"
-            >
-              清除贴纸
-            </Button>
-          </div>
+          <Button
+            icon={<UndoOutlined />}
+            onClick={() => {
+              // 重置贴纸相关状态
+              setStickers([])
+              setSelectedSticker(null)
+              setEditingText(null)
+              setApplyScope('all')
+              setSelectedPhotos([])
+            }}
+            size="large"
+            style={{ width: '100%' }}
+            title="清除所有贴纸"
+          >
+            清除贴纸
+          </Button>
         </div>
-
-
+        </div>
       </div>
-    </div>
   )
 }
 
