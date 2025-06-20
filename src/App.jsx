@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { Layout, Typography, Row, Col, Card, Steps, Button, message } from 'antd'
+import { Layout, Typography, Row, Col, Card, Steps, Button, message, Tag } from 'antd'
+import { useDeviceDetection } from './utils/deviceDetector'
 import { 
   PictureOutlined, 
   AudioOutlined, 
@@ -26,6 +27,9 @@ const { Header, Content } = Layout
 const { Title, Text } = Typography
 
 function App() {
+  // 设备检测
+  const { hasMouse, hasTouch, inputType } = useDeviceDetection()
+  
   const [currentStep, setCurrentStep] = useState(0)
   const [photos, setPhotos] = useState([])
   const [selectedPhotos, setSelectedPhotos] = useState([])
@@ -114,8 +118,8 @@ function App() {
   }
 
   // 处理图片编辑
-  const handlePhotoEdit = async (photoId, transform, aspectRatio, editResult = null) => {
-    // 处理图片切换操作
+  const handlePhotoEdit = (photoId, transform, aspectRatio, editResult = null) => {
+    // 处理图片切换操作（现在editResult就是主要的参数对象）
     if (editResult?.action === 'switchPhoto') {
       const selectedPhotoIndex = photos.filter(p => selectedPhotos.includes(p.id))
         .findIndex(p => p.id === editResult.photoId)
@@ -125,78 +129,30 @@ function App() {
       return
     }
 
-    const photo = photos.find(p => p.id === photoId)
-    if (!photo) return
-
-    try {
-      setIsLoading(true)
-      setLoadingText('正在处理图片...')
-
-      // 如果是贴纸应用操作
-      if (editResult?.type === 'sticker' && editResult.stickers) {
-        setPhotos(prev => prev.map(p => {
-          if (p.id === photoId) {
-            return {
-              ...p,
-              stickers: editResult.stickers,
-              hasStickers: true
-            }
-          }
-          return p
-        }))
-        return
+    // 只保存变换参数，不立即处理图片
+    setPhotos(prev => prev.map(p => {
+      if (p.id === photoId) {
+        const updatedPhoto = { ...p }
+        
+        // 保存变换信息
+        if (transform) {
+          updatedPhoto.transform = transform
+          updatedPhoto.isEdited = true
+          console.log('💾 保存图片变换参数:', { photoId, transform })
+        }
+        
+        // 保存贴纸信息
+        if (editResult?.stickers) {
+          updatedPhoto.stickers = editResult.stickers
+          updatedPhoto.hasStickers = true
+        }
+        
+        return updatedPhoto
       }
+      return p
+    }))
 
-      // 如果有变换操作，生成编辑后的图片
-      if (transform) {
-        const editedUrl = await processImage(
-          photo.url, 
-          transform, 
-          aspectRatio, 
-          1920  // 输出宽度
-        )
-
-        // 更新photos数组
-        setPhotos(prev => prev.map(p => {
-          if (p.id === photoId) {
-            // 释放之前的编辑图片
-            if (p.editedUrl) {
-              releaseBlobUrl(p.editedUrl)
-            }
-            return {
-              ...p,
-              editedUrl,
-              isEdited: true,
-              transform, // 保存变换信息
-              // 保留贴纸数据和添加新的编辑结果
-              stickers: editResult?.stickers || p.stickers,
-              hasStickers: !!(editResult?.stickers || p.stickers)
-            }
-          }
-          return p
-        }))
-      } else if (editResult?.stickers) {
-        // 只有贴纸操作，不需要重新生成图片
-        setPhotos(prev => prev.map(p => {
-          if (p.id === photoId) {
-            return {
-              ...p,
-              stickers: editResult.stickers,
-              hasStickers: true
-            }
-          }
-          return p
-        }))
-      }
-
-      message.success('图片编辑成功')
-    } catch (error) {
-      console.error('图片编辑失败:', error)
-      message.error(`图片编辑失败: ${error.message}`)
-    } finally {
-      setIsLoading(false)
-      setLoadingText('')
-    }
+    // 静默保存，不显示提示
   }
 
   const handleStepChange = (step) => {
@@ -217,14 +173,61 @@ function App() {
     setLoadingText('正在初始化视频生成器...')
     
     try {
-      const videoGenerator = new VideoGenerator()
       const selectedPhotoObjects = photos.filter(photo => selectedPhotos.includes(photo.id))
       
+      // 处理有变换的图片，生成editedUrl
+      const processedPhotos = []
+      for (let i = 0; i < selectedPhotoObjects.length; i++) {
+        const photo = selectedPhotoObjects[i]
+        setLoadingText(`正在处理图片 ${i + 1}/${selectedPhotoObjects.length}...`)
+        
+        if (photo.transform && photo.isEdited) {
+          console.log('🔄 导出时处理图片变换:', { photoId: photo.id, transform: photo.transform })
+          
+          try {
+            // 将字符串比例转换为数值比例
+            const getRatioNumber = (ratioString) => {
+              switch (ratioString) {
+                case '16:9': return 16/9
+                case '4:3': return 4/3
+                case '1:1': return 1
+                case '9:16': return 9/16
+                case '21:9': return 21/9
+                case '3:2': return 3/2
+                default: return 16/9
+              }
+            }
+            
+            const aspectRatioNumber = getRatioNumber(options.aspectRatio || '16:9')
+            
+            const editedUrl = await processImage(
+              photo.url,
+              photo.transform,
+              aspectRatioNumber,
+              options.width || 1920
+            )
+            
+            processedPhotos.push({
+              ...photo,
+              editedUrl
+            })
+          } catch (error) {
+            console.error('图片处理失败:', error)
+            // 如果处理失败，使用原图
+            processedPhotos.push(photo)
+          }
+        } else {
+          // 没有变换的图片直接使用
+          processedPhotos.push(photo)
+        }
+      }
+      
+      const videoGenerator = new VideoGenerator()
       setLoadingText('正在渲染视频帧...')
       
       // 生成视频
       const videoResult = await videoGenerator.generateVideo(
-        selectedPhotoObjects,
+        processedPhotos,
         effects,
         audioFile,
         {
@@ -246,6 +249,13 @@ function App() {
       // 下载视频
       const downloadResult = videoGenerator.downloadVideo(videoResult, baseFilename)
       
+      // 清理导出时生成的临时editedUrl
+      processedPhotos.forEach(photo => {
+        if (photo.editedUrl && photo.editedUrl !== photos.find(p => p.id === photo.id)?.editedUrl) {
+          URL.revokeObjectURL(photo.editedUrl)
+        }
+      })
+
       // 显示实际生成的格式
       if (format !== videoResult.actualFormat.toLowerCase()) {
         message.warning(`请求格式 ${format.toUpperCase()}，但浏览器只支持 ${videoResult.actualFormat}，已生成 ${downloadResult.filename}`)
@@ -308,7 +318,10 @@ function App() {
                     <ImageEditor
                       visible={true}
                       onCancel={() => {}}
-                      onConfirm={handlePhotoEdit}
+                      onConfirm={(result) => {
+                        // 正确调用handlePhotoEdit，参数格式匹配
+                        handlePhotoEdit(editorData.currentPhotoId, result.transform, 16/9, result)
+                      }}
                       imageUrl={editorData.imageUrl}
                       initialTransform={editorData.initialTransform}
                       aspectRatio={16/9}
@@ -385,14 +398,38 @@ function App() {
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         backdropFilter: 'blur(10px)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-          <PictureOutlined style={{ fontSize: '24px', color: '#1890ff', marginRight: '12px' }} />
-          <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-            电子相册制作工具
-          </Title>
-          <Text type="secondary" style={{ marginLeft: '16px' }}>
-            简单易用 · 一键生成精美相册视频
-          </Text>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <PictureOutlined style={{ fontSize: '24px', color: '#1890ff', marginRight: '12px' }} />
+            <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
+              电子相册制作工具
+            </Title>
+            <Text type="secondary" style={{ marginLeft: '16px' }}>
+              简单易用 · 一键生成精美相册视频
+            </Text>
+          </div>
+          
+          {/* 设备状态显示 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Text type="secondary" style={{ fontSize: '12px' }}>当前设备:</Text>
+            <Tag 
+              color={
+                inputType === 'mouse' ? 'blue' : 
+                inputType === 'touch' ? 'green' : 
+                inputType === 'hybrid' ? 'orange' : 'default'
+              }
+              style={{ fontSize: '11px' }}
+            >
+              {inputType === 'mouse' ? '🖱️ 桌面电脑' : 
+               inputType === 'touch' ? '👆 触摸设备' : 
+               inputType === 'hybrid' ? '🖱️👆 混合设备' : '⌨️ 键盘设备'}
+            </Tag>
+            {inputType === 'hybrid' && (
+              <Text type="secondary" style={{ fontSize: '10px' }}>
+                (支持多种操作方式)
+              </Text>
+            )}
+          </div>
         </div>
       </Header>
 

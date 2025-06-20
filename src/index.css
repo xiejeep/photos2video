@@ -12,6 +12,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
+  /* 触摸设备优化 */
+  touch-action: manipulation; /* 优化触摸响应 */
+  -webkit-tap-highlight-color: transparent; /* 移除点击高亮 */
 }
 
 /* 字体样式定义 */
@@ -197,5 +200,155 @@ body {
   .photo-selector-scroll > div {
     min-width: 100px !important;
     height: 60px !important;
+  }
+}
+
+/* Ken Burns 动画效果 - 与VideoGenerator保持一致 */
+@keyframes kenBurns {
+  0% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+/* 确保Ken Burns效果平滑 */
+.preview-area img[style*="kenBurns"] {
+  animation-timing-function: ease-in-out !important;
+}
+
+/* 预览区域图片样式优化 */
+.preview-area img {
+  will-change: transform;
+}
+
+/* 修复转场动画中的层级问题 */
+.preview-area .transition-image {
+  position: absolute;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  left: 50%;
+  top: 50%;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* 优化滤镜渲染性能 */
+.preview-area img[style*="filter"] {
+  will-change: filter;
+}
+
+/* 触屏设备优化 */
+.image-editor-container img {
+  touch-action: none; /* 禁用默认触摸行为，避免与缩放冲突 */
+  user-select: none; /* 防止长按选择 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* 预览区域触摸优化 */
+.preview-area {
+  touch-action: pan-x; /* 允许水平滑动 */
+}
+
+/* 触摸设备的预览提示 */
+@media (pointer: coarse) and (hover: none) {
+  .preview-area::after {
+    content: "← 滑动切换图片 →";
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: 1000;
+  }
+}
+
+/* 为混合设备（如带触摸屏的笔记本）显示不同提示 */
+@media (pointer: fine) and (hover: hover) and (any-pointer: coarse) {
+  .preview-area::after {
+    content: "← 滑动或点击切换 →";
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 165, 0, 0.8);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: 1000;
+  }
+}
+
+/* 触摸友好的按钮大小 */
+@media (pointer: coarse) {
+  .control-group button,
+  .ant-btn {
+    min-height: 44px !important; /* 至少44px的触摸目标 */
+    min-width: 44px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+  }
+  
+  .control-group input[type="range"] {
+    height: 44px; /* 更大的滑块触摸区域 */
+  }
+  
+  .photo-item {
+    min-height: 60px; /* 更大的照片选择区域 */
+  }
+  
+  /* 触摸友好的预览控制 */
+  .preview-controls button {
+    min-height: 48px;
+    min-width: 48px;
+    font-size: 16px;
+  }
+  
+  /* 更大的时间轴控制 */
+  .timeline-container .ant-slider {
+    height: 20px;
+  }
+  
+  .timeline-container .ant-slider-handle {
+    width: 20px;
+    height: 20px;
+    margin-top: -9px;
+  }
+  
+  /* 增大选择器和输入框 */
+  .ant-select-selector,
+  .ant-input-number {
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+  
+  /* 上传区域触摸优化 */
+  .ant-upload-drag {
+    min-height: 150px !important;
+    padding: 24px !important;
+  }
+  
+  /* 图片编辑器的按钮 */
+  .image-editor-container button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding: 8px 12px !important;
   }
 } 

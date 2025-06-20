@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Card, Button, Space, Typography, Progress, Tag, Select, Divider } from 'antd'
+import { useDeviceDetection } from '../utils/deviceDetector'
 import { 
   PlayCircleOutlined, 
   PauseCircleOutlined, 
@@ -17,6 +18,7 @@ import {
   CloseOutlined
 } from '@ant-design/icons'
 import ImageEditor from './ImageEditor'
+import { EffectsRenderer } from '../utils/effectsRenderer'
 
 const { Text } = Typography
 
@@ -29,6 +31,8 @@ const PreviewPanel = ({
   currentAspectRatio = '16:9',
   onPhotoEdit  // 新增图片编辑回调
 }) => {
+  // 设备检测
+  const { hasMouse, hasTouch, inputType } = useDeviceDetection()
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -262,23 +266,88 @@ const PreviewPanel = ({
     }, transitionFrameInterval)
   }
 
+  // 触摸手势支持
+  const touchStartRef = useRef(null)
+  const touchEndRef = useRef(null)
+  const minSwipeDistance = 50 // 最小滑动距离
+
+  const handleTouchStart = (e) => {
+    touchEndRef.current = null // 清除上次结束位置
+    touchStartRef.current = {
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY
+    }
+  }
+
+  const handleTouchMove = (e) => {
+    if (!touchStartRef.current) return
+    
+    touchEndRef.current = {
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (!touchStartRef.current || !touchEndRef.current) return
+    
+    const deltaX = touchStartRef.current.x - touchEndRef.current.x
+    const deltaY = touchStartRef.current.y - touchEndRef.current.y
+    
+    // 检查是否为水平滑动（水平距离大于垂直距离）
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (Math.abs(deltaX) > minSwipeDistance) {
+        if (deltaX > 0) {
+          // 向左滑动，显示下一张
+          handleNext()
+        } else {
+          // 向右滑动，显示上一张
+          handlePrev()
+        }
+      }
+    }
+    
+    // 清理
+    touchStartRef.current = null
+    touchEndRef.current = null
+  }
+
   const getCurrentPhotoStyle = () => {
+    const currentPhoto = photos[currentIndex]
+    const userTransform = currentPhoto?.transform || { scale: 1, rotation: 0, x: 0, y: 0 }
+    
+    // 构建变换数组，从右到左应用：先用户变换，再居中定位
+    const transforms = []
+    
+    // 用户变换（相对于图片中心）
+    if (userTransform.x !== 0 || userTransform.y !== 0) {
+      transforms.push(`translate(${userTransform.x}px, ${userTransform.y}px)`)
+    }
+    if (userTransform.rotation !== 0) {
+      transforms.push(`rotate(${userTransform.rotation}deg)`)
+    }
+    if (userTransform.scale !== 1) {
+      transforms.push(`scale(${userTransform.scale})`)
+    }
+    
+    // 最后居中（这个变换最先执行）
+    transforms.unshift('translate(-50%, -50%)')
+
     // 如果启用了Ken Burns效果，不设置transform（由CSS动画控制）
     if (effects.kenBurns && !isTransitioning) {
       return { 
         opacity: 1, 
         zIndex: 2
-        // transform 由kenBurns动画控制
+        // transform 由kenBurns动画控制，但我们需要考虑用户变换
+        // 注意：Ken Burns和用户变换可能会冲突，可能需要特殊处理
       }
     }
-
-    const baseTransforms = ['translate(-50%, -50%)'] // 始终保持居中
 
     if (!isTransitioning) {
       return { 
         opacity: 1, 
         zIndex: 2,
-        transform: baseTransforms.join(' ')
+        transform: transforms.join(' ')
       }
     }
 
@@ -301,7 +370,7 @@ const PreviewPanel = ({
     }
 
     const isReverse = transitionDirection === 'prev'
-    const additionalTransforms = [...baseTransforms]
+    const additionalTransforms = [...transforms] // 使用包含用户变换的transforms
 
     switch (effects.transition) {
       case 'fade':
@@ -318,7 +387,16 @@ const PreviewPanel = ({
           zIndex: 2
         }
       case 'zoom':
-        additionalTransforms.push(`scale(${1 + transitionProgress * 0.2})`)
+        // 在用户缩放基础上再应用转场缩放
+        const currentScale = userTransform.scale || 1
+        const transitionScale = 1 + transitionProgress * 0.2
+        // 替换或添加scale变换
+        const scaleIndex = additionalTransforms.findIndex(t => t.includes('scale'))
+        if (scaleIndex >= 0) {
+          additionalTransforms[scaleIndex] = `scale(${currentScale * transitionScale})`
+        } else {
+          additionalTransforms.push(`scale(${transitionScale})`)
+        }
         return {
           opacity: 1 - transitionProgress,
           transform: additionalTransforms.join(' '),
@@ -326,8 +404,25 @@ const PreviewPanel = ({
         }
       case 'rotate':
         const rotateTo = isReverse ? -90 : 90
-        additionalTransforms.push(`rotate(${transitionProgress * rotateTo}deg)`)
-        additionalTransforms.push(`scale(${1 - transitionProgress * 0.2})`)
+        const currentRotation = userTransform.rotation || 0
+        // 替换或添加rotate变换
+        const rotateIndex = additionalTransforms.findIndex(t => t.includes('rotate'))
+        if (rotateIndex >= 0) {
+          additionalTransforms[rotateIndex] = `rotate(${currentRotation + transitionProgress * rotateTo}deg)`
+        } else {
+          additionalTransforms.push(`rotate(${transitionProgress * rotateTo}deg)`)
+        }
+        
+        // 处理缩放
+        const currentScale2 = userTransform.scale || 1
+        const transitionScale2 = 1 - transitionProgress * 0.2
+        const scaleIndex2 = additionalTransforms.findIndex(t => t.includes('scale'))
+        if (scaleIndex2 >= 0) {
+          additionalTransforms[scaleIndex2] = `scale(${currentScale2 * transitionScale2})`
+        } else {
+          additionalTransforms.push(`scale(${transitionScale2})`)
+        }
+        
         return {
           opacity: 1 - transitionProgress,
           transform: additionalTransforms.join(' '),
@@ -343,6 +438,29 @@ const PreviewPanel = ({
   }
 
   const getNextPhotoStyle = () => {
+    const targetIndex = transitionDirection === 'next' 
+      ? (currentIndex + 1) % photos.length 
+      : (currentIndex - 1 + photos.length) % photos.length
+    const nextPhoto = photos[targetIndex]
+    const nextUserTransform = nextPhoto?.transform || { scale: 1, rotation: 0, x: 0, y: 0 }
+    
+    // 构建下一张照片的变换
+    const nextTransforms = []
+    
+    // 用户变换
+    if (nextUserTransform.x !== 0 || nextUserTransform.y !== 0) {
+      nextTransforms.push(`translate(${nextUserTransform.x}px, ${nextUserTransform.y}px)`)
+    }
+    if (nextUserTransform.rotation !== 0) {
+      nextTransforms.push(`rotate(${nextUserTransform.rotation}deg)`)
+    }
+    if (nextUserTransform.scale !== 1) {
+      nextTransforms.push(`scale(${nextUserTransform.scale})`)
+    }
+    
+    // 居中
+    nextTransforms.unshift('translate(-50%, -50%)')
+
     // 如果启用了Ken Burns效果，交给CSS动画处理
     if (effects.kenBurns) {
       switch (effects.transition) {
@@ -362,83 +480,73 @@ const PreviewPanel = ({
     }
 
     const isReverse = transitionDirection === 'prev'
-    const baseTransforms = ['translate(-50%, -50%)'] // 始终保持居中
     
     switch (effects.transition) {
       case 'fade':
         return {
           opacity: transitionProgress,
           zIndex: 1,
-          transform: baseTransforms.join(' ')
+          transform: nextTransforms.join(' ')
         }
       case 'slide':
         const slideFrom = isReverse ? -100 : 100
-        baseTransforms.push(`translateX(${slideFrom - transitionProgress * slideFrom}%)`)
+        nextTransforms.push(`translateX(${slideFrom - transitionProgress * slideFrom}%)`)
         return {
-          transform: baseTransforms.join(' '),
+          transform: nextTransforms.join(' '),
           zIndex: 1
         }
       case 'zoom':
-        baseTransforms.push(`scale(${1.2 - transitionProgress * 0.2})`)
+        // 在用户缩放基础上应用转场缩放
+        const nextCurrentScale = nextUserTransform.scale || 1
+        const nextTransitionScale = 1.2 - transitionProgress * 0.2
+        const nextScaleIndex = nextTransforms.findIndex(t => t.includes('scale'))
+        if (nextScaleIndex >= 0) {
+          nextTransforms[nextScaleIndex] = `scale(${nextCurrentScale * nextTransitionScale})`
+        } else {
+          nextTransforms.push(`scale(${nextTransitionScale})`)
+        }
         return {
           opacity: transitionProgress,
-          transform: baseTransforms.join(' '),
+          transform: nextTransforms.join(' '),
           zIndex: 1
         }
       case 'rotate':
         const rotateFrom = isReverse ? 90 : -90
-        baseTransforms.push(`rotate(${rotateFrom + transitionProgress * -rotateFrom}deg)`)
-        baseTransforms.push(`scale(${0.8 + transitionProgress * 0.2})`)
+        const nextCurrentRotation = nextUserTransform.rotation || 0
+        const nextRotateIndex = nextTransforms.findIndex(t => t.includes('rotate'))
+        if (nextRotateIndex >= 0) {
+          nextTransforms[nextRotateIndex] = `rotate(${nextCurrentRotation + rotateFrom + transitionProgress * -rotateFrom}deg)`
+        } else {
+          nextTransforms.push(`rotate(${rotateFrom + transitionProgress * -rotateFrom}deg)`)
+        }
+        
+        // 处理缩放
+        const nextCurrentScale2 = nextUserTransform.scale || 1
+        const nextTransitionScale2 = 0.8 + transitionProgress * 0.2
+        const nextScaleIndex2 = nextTransforms.findIndex(t => t.includes('scale'))
+        if (nextScaleIndex2 >= 0) {
+          nextTransforms[nextScaleIndex2] = `scale(${nextCurrentScale2 * nextTransitionScale2})`
+        } else {
+          nextTransforms.push(`scale(${nextTransitionScale2})`)
+        }
+        
         return {
           opacity: transitionProgress,
-          transform: baseTransforms.join(' '),
+          transform: nextTransforms.join(' '),
           zIndex: 1
         }
       default:
         return {
           opacity: transitionProgress,
           zIndex: 1,
-          transform: baseTransforms.join(' ')
+          transform: nextTransforms.join(' ')
         }
     }
   }
 
   const getFilterStyle = () => {
-    const filters = []
-    
-    if (effects.brightness) {
-      filters.push(`brightness(${1 + effects.brightness / 100})`)
-    }
-    
-    if (effects.contrast) {
-      filters.push(`contrast(${1 + effects.contrast / 100})`)
-    }
-
-    switch (effects.filter) {
-      case 'grayscale':
-        filters.push('grayscale(100%)')
-        break
-      case 'vintage':
-        filters.push('sepia(50%) contrast(1.2) brightness(1.1)')
-        break
-      case 'warm':
-        filters.push('hue-rotate(30deg) saturate(1.3)')
-        break
-      case 'cool':
-        filters.push('hue-rotate(-30deg) saturate(1.2)')
-        break
-      case 'contrast':
-        filters.push('contrast(1.5)')
-        break
-      case 'soft':
-        filters.push('blur(0.5px) brightness(1.1)')
-        break
-      case 'vivid':
-        filters.push('saturate(1.5) contrast(1.2)')
-        break
-    }
-
-    return filters.length > 0 ? filters.join(' ') : 'none'
+    // 使用统一的效果渲染工具，确保与导出一致
+    return EffectsRenderer.getCSSFilter(effects)
   }
 
   // 获取当前照片的显示URL（优先使用编辑后的图片）
@@ -468,9 +576,17 @@ const PreviewPanel = ({
     <Card
       title={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <EyeOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
             <span>{showFinalPreview ? '最终预览' : '实时预览'}</span>
+            <Tag 
+              color={inputType === 'mouse' ? 'blue' : inputType === 'touch' ? 'green' : 'orange'}
+              style={{ fontSize: '10px' }}
+            >
+              {inputType === 'mouse' ? '🖱️' : 
+               inputType === 'touch' ? '👆' : 
+               inputType === 'hybrid' ? '🖱️👆' : '⌨️'}
+            </Tag>
           </div>
           {photos.length > 0 && (
             <Space>
@@ -542,6 +658,9 @@ const PreviewPanel = ({
               borderRadius: '8px',
               overflow: 'hidden'
             }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             {photos.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#666' }}>
@@ -763,6 +882,30 @@ const PreviewPanel = ({
                   </Text>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 操作说明 - 根据设备类型显示 */}
+          {photos.length > 0 && (
+            <div style={{
+              padding: '8px',
+              background: inputType === 'touch' ? '#f6ffed' : '#f0f8ff',
+              borderRadius: '4px',
+              marginBottom: '8px'
+            }}>
+              <Text strong style={{ fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                {inputType === 'touch' ? '👆 触摸操作' : 
+                 inputType === 'mouse' ? '🖱️ 鼠标操作' : '🖱️👆 操作方式'}
+              </Text>
+              <div style={{ fontSize: '9px', color: '#666', lineHeight: '1.3' }}>
+                {inputType === 'touch' ? (
+                  <>左右滑动切换图片</>
+                ) : inputType === 'mouse' ? (
+                  <>点击按钮切换图片</>
+                ) : (
+                  <>滑动或点击切换</>
+                )}
+              </div>
             </div>
           )}
 

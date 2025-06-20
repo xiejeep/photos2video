@@ -1,6 +1,7 @@
 // 视频生成工具
 import { AudioUtils } from './audioUtils.js'
 import { CodecDetector } from './codecDetector.js'
+import { EffectsRenderer } from './effectsRenderer.js'
 
 export class VideoGenerator {
   constructor() {
@@ -32,22 +33,77 @@ export class VideoGenerator {
         }
         break
       case 'vintage':
+        // 匹配CSS: sepia(50%) contrast(1.2) brightness(1.1)
         for (let i = 0; i < data.length; i += 4) {
-          data[i] = Math.min(255, data[i] * 1.2)     // 增强红色
-          data[i + 1] = Math.min(255, data[i + 1] * 1.1) // 稍微增强绿色
-          data[i + 2] = Math.min(255, data[i + 2] * 0.8) // 减少蓝色
+          // 先应用sepia效果 (50%)
+          const r = data[i], g = data[i + 1], b = data[i + 2]
+          const sepiaR = Math.min(255, (r * 0.393 + g * 0.769 + b * 0.189) * 0.5 + r * 0.5)
+          const sepiaG = Math.min(255, (r * 0.349 + g * 0.686 + b * 0.168) * 0.5 + g * 0.5)
+          const sepiaB = Math.min(255, (r * 0.272 + g * 0.534 + b * 0.131) * 0.5 + b * 0.5)
+          
+          // 再应用对比度(1.2)和亮度(1.1)
+          data[i] = Math.min(255, ((sepiaR - 128) * 1.2 + 128) * 1.1)
+          data[i + 1] = Math.min(255, ((sepiaG - 128) * 1.2 + 128) * 1.1)
+          data[i + 2] = Math.min(255, ((sepiaB - 128) * 1.2 + 128) * 1.1)
         }
         break
       case 'warm':
+        // 匹配CSS: hue-rotate(30deg) saturate(1.3)
         for (let i = 0; i < data.length; i += 4) {
-          data[i] = Math.min(255, data[i] * 1.1)     // 增强红色
-          data[i + 1] = Math.min(255, data[i + 1] * 1.05) // 稍微增强绿色
+          // 简化的暖色调效果，增强红色和饱和度
+          const r = data[i], g = data[i + 1], b = data[i + 2]
+          const avg = (r + g + b) / 3
+          data[i] = Math.min(255, r * 1.15 + (r - avg) * 0.3)     // 增强红色
+          data[i + 1] = Math.min(255, g * 1.05 + (g - avg) * 0.3) // 轻微增强绿色
+          data[i + 2] = Math.min(255, b * 0.95 + (b - avg) * 0.3) // 轻微减少蓝色
         }
         break
       case 'cool':
+        // 匹配CSS: hue-rotate(-30deg) saturate(1.2)
         for (let i = 0; i < data.length; i += 4) {
-          data[i + 2] = Math.min(255, data[i + 2] * 1.2) // 增强蓝色
-          data[i + 1] = Math.min(255, data[i + 1] * 1.1) // 稍微增强绿色
+          // 简化的冷色调效果，增强蓝色和饱和度
+          const r = data[i], g = data[i + 1], b = data[i + 2]
+          const avg = (r + g + b) / 3
+          data[i] = Math.min(255, r * 0.95 + (r - avg) * 0.2)     // 轻微减少红色
+          data[i + 1] = Math.min(255, g * 1.05 + (g - avg) * 0.2) // 轻微增强绿色
+          data[i + 2] = Math.min(255, b * 1.2 + (b - avg) * 0.2)  // 增强蓝色
+        }
+        break
+      case 'contrast':
+        // 匹配CSS: contrast(1.5)
+        for (let i = 0; i < data.length; i += 4) {
+          data[i] = Math.min(255, Math.max(0, ((data[i] - 128) * 1.5) + 128))
+          data[i + 1] = Math.min(255, Math.max(0, ((data[i + 1] - 128) * 1.5) + 128))
+          data[i + 2] = Math.min(255, Math.max(0, ((data[i + 2] - 128) * 1.5) + 128))
+        }
+        break
+      case 'soft':
+        // 匹配CSS: blur(0.5px) brightness(1.1) - 简化为亮度增强
+        for (let i = 0; i < data.length; i += 4) {
+          data[i] = Math.min(255, data[i] * 1.1)
+          data[i + 1] = Math.min(255, data[i + 1] * 1.1)
+          data[i + 2] = Math.min(255, data[i + 2] * 1.1)
+        }
+        break
+      case 'vivid':
+        // 匹配CSS: saturate(1.5) contrast(1.2)
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2]
+          const avg = (r + g + b) / 3
+          
+          // 增强饱和度
+          let newR = r + (r - avg) * 0.5
+          let newG = g + (g - avg) * 0.5
+          let newB = b + (b - avg) * 0.5
+          
+          // 增强对比度
+          newR = ((newR - 128) * 1.2) + 128
+          newG = ((newG - 128) * 1.2) + 128
+          newB = ((newB - 128) * 1.2) + 128
+          
+          data[i] = Math.min(255, Math.max(0, newR))
+          data[i + 1] = Math.min(255, Math.max(0, newG))
+          data[i + 2] = Math.min(255, Math.max(0, newB))
         }
         break
     }
@@ -65,30 +121,29 @@ export class VideoGenerator {
         // 清空画布
         this.ctx.fillStyle = '#000000'
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
-
-        // 计算图片缩放和居中
-        const canvasRatio = this.canvas.width / this.canvas.height
-        const imgRatio = img.width / img.height
         
-        let drawWidth, drawHeight, drawX, drawY
-        
-        if (imgRatio > canvasRatio) {
-          // 图片更宽，以高度为准
-          drawHeight = this.canvas.height
-          drawWidth = drawHeight * imgRatio
-          drawX = (this.canvas.width - drawWidth) / 2
-          drawY = 0
-        } else {
-          // 图片更高，以宽度为准
-          drawWidth = this.canvas.width
-          drawHeight = drawWidth / imgRatio
-          drawX = 0
-          drawY = (this.canvas.height - drawHeight) / 2
-        }
+        // 重置canvas状态
+        this.ctx.globalCompositeOperation = 'source-over'
+        this.ctx.globalAlpha = 1
+        this.ctx.filter = 'none'
 
-        // Ken Burns效果
+        // 使用统一的图片缩放逻辑
+        const displayInfo = EffectsRenderer.getContainDisplayInfo(
+          img.width, 
+          img.height, 
+          this.canvas.width, 
+          this.canvas.height
+        )
+        
+        let drawWidth = displayInfo.width
+        let drawHeight = displayInfo.height
+        let drawX = displayInfo.x
+        let drawY = displayInfo.y
+
+        // 改进的Ken Burns效果，使用统一的渲染工具
         if (effects.kenBurns) {
-          const scale = 1 + (progress * 0.1) // 逐渐放大
+          const scale = EffectsRenderer.getKenBurnsScale(true)
+          
           const scaledWidth = drawWidth * scale
           const scaledHeight = drawHeight * scale
           drawX -= (scaledWidth - drawWidth) / 2
@@ -97,7 +152,7 @@ export class VideoGenerator {
           drawHeight = scaledHeight
         }
 
-        // 绘制图片
+        // 直接绘制图片 - 如果使用editedUrl，变换已经被imageProcessor预处理过了
         this.ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
 
         // 应用滤镜
@@ -107,12 +162,31 @@ export class VideoGenerator {
           this.ctx.putImageData(filteredData, 0, 0)
         }
 
-        // 应用亮度和对比度
+        // 应用亮度和对比度 - 使用像素级处理保证与CSS一致
         if (effects.brightness || effects.contrast) {
-          this.ctx.globalCompositeOperation = 'multiply'
-          const brightness = 1 + (effects.brightness || 0) / 100
-          const contrast = 1 + (effects.contrast || 0) / 100
-          this.ctx.filter = `brightness(${brightness}) contrast(${contrast})`
+          const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height)
+          const data = imageData.data
+          const brightness = (effects.brightness || 0) / 100 // 转换为-1到1的范围
+          const contrast = (effects.contrast || 0) / 100 + 1 // 转换为倍数
+          
+          for (let i = 0; i < data.length; i += 4) {
+            // 应用对比度（以128为中心点）
+            let r = ((data[i] - 128) * contrast) + 128
+            let g = ((data[i + 1] - 128) * contrast) + 128
+            let b = ((data[i + 2] - 128) * contrast) + 128
+            
+            // 应用亮度
+            r += brightness * 255
+            g += brightness * 255
+            b += brightness * 255
+            
+            // 确保值在0-255范围内
+            data[i] = Math.min(255, Math.max(0, r))
+            data[i + 1] = Math.min(255, Math.max(0, g))
+            data[i + 2] = Math.min(255, Math.max(0, b))
+          }
+          
+          this.ctx.putImageData(imageData, 0, 0)
         }
 
         // 绘制文字叠加
@@ -152,6 +226,14 @@ export class VideoGenerator {
     })
   }
 
+  // 统一的图片绘制方法 - 变换已经被imageProcessor预处理过了
+  drawImageWithTransform(img, displayInfo, photo) {
+    const { drawWidth, drawHeight, drawX, drawY } = displayInfo
+    
+    // 直接绘制图片 - editedUrl已经包含了用户的变换
+    this.ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
+  }
+
   // 绘制单个贴纸
   drawSticker(sticker, imageDisplayInfo) {
     const { drawWidth, drawHeight, drawX, drawY } = imageDisplayInfo
@@ -160,26 +242,17 @@ export class VideoGenerator {
     // 贴纸位置是相对于图片编辑器视口中心的像素偏移
     // 需要转换为相对于实际图片显示区域的位置
     
-    // 假设编辑器视口尺寸（这应该与ImageEditor中的计算一致）
-    const editorMaxWidth = 600
-    const editorMaxHeight = 400
-    const aspectRatio = drawWidth / drawHeight
-    
-    let editorWidth, editorHeight
-    if (aspectRatio > editorMaxWidth / editorMaxHeight) {
-      editorWidth = editorMaxWidth
-      editorHeight = editorMaxWidth / aspectRatio
-    } else {
-      editorHeight = editorMaxHeight
-      editorWidth = editorMaxHeight * aspectRatio
-    }
+    // 编辑器视口尺寸（与ImageEditor中的固定尺寸保持一致）
+    const editorWidth = 800  // ImageEditor的固定宽度
+    const editorHeight = 500 // ImageEditor的固定高度
     
     // 将编辑器中的像素偏移转换为图片显示区域的绝对位置
+    // 贴纸坐标系：编辑器中心为(0,0)，向右向下为正
     const stickerX = drawX + drawWidth / 2 + (sticker.x / editorWidth) * drawWidth
     const stickerY = drawY + drawHeight / 2 + (sticker.y / editorHeight) * drawHeight
     
-    // 计算贴纸尺寸（基于图片显示尺寸）
-    const baseStickerSize = Math.min(drawWidth, drawHeight) * 0.1 // 基础尺寸为图片较小边的10%
+    // 计算贴纸尺寸（基于画布尺寸，与编辑器中的计算逻辑一致）
+    const baseStickerSize = Math.min(this.canvas.width, this.canvas.height) * 0.08 // 基础尺寸
     const stickerSize = baseStickerSize * (sticker.scale || 1)
     
     this.ctx.save()
@@ -471,26 +544,21 @@ export class VideoGenerator {
     this.ctx.fillStyle = '#000000'
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
 
-    // 计算图片尺寸和位置
+    // 计算图片尺寸和位置 - 使用统一的缩放逻辑
     const getImageDrawInfo = (img) => {
-      const canvasRatio = this.canvas.width / this.canvas.height
-      const imgRatio = img.width / img.height
+      const displayInfo = EffectsRenderer.getContainDisplayInfo(
+        img.width, 
+        img.height, 
+        this.canvas.width, 
+        this.canvas.height
+      )
       
-      let drawWidth, drawHeight, drawX, drawY
-      
-      if (imgRatio > canvasRatio) {
-        drawHeight = this.canvas.height
-        drawWidth = drawHeight * imgRatio
-        drawX = (this.canvas.width - drawWidth) / 2
-        drawY = 0
-      } else {
-        drawWidth = this.canvas.width
-        drawHeight = drawWidth / imgRatio
-        drawX = 0
-        drawY = (this.canvas.height - drawHeight) / 2
+      return { 
+        drawWidth: displayInfo.width, 
+        drawHeight: displayInfo.height, 
+        drawX: displayInfo.x, 
+        drawY: displayInfo.y 
       }
-      
-      return { drawWidth, drawHeight, drawX, drawY }
     }
 
     const currentInfo = getImageDrawInfo(currentImg)
@@ -500,10 +568,10 @@ export class VideoGenerator {
       case 'fade':
         // 淡入淡出效果
         this.ctx.globalAlpha = 1 - progress
-        this.ctx.drawImage(currentImg, currentInfo.drawX, currentInfo.drawY, currentInfo.drawWidth, currentInfo.drawHeight)
+        this.drawImageWithTransform(currentImg, currentInfo, currentPhoto)
         
         this.ctx.globalAlpha = progress
-        this.ctx.drawImage(nextImg, nextInfo.drawX, nextInfo.drawY, nextInfo.drawWidth, nextInfo.drawHeight)
+        this.drawImageWithTransform(nextImg, nextInfo, nextPhoto)
         
         this.ctx.globalAlpha = 1
         break
@@ -512,44 +580,61 @@ export class VideoGenerator {
         // 滑动效果
         const slideOffset = this.canvas.width * progress
         
-        this.ctx.drawImage(currentImg, currentInfo.drawX - slideOffset, currentInfo.drawY, currentInfo.drawWidth, currentInfo.drawHeight)
-        this.ctx.drawImage(nextImg, nextInfo.drawX + this.canvas.width - slideOffset, nextInfo.drawY, nextInfo.drawWidth, nextInfo.drawHeight)
+        // 为滑动效果临时调整位置
+        const currentSlideInfo = { ...currentInfo, drawX: currentInfo.drawX - slideOffset }
+        const nextSlideInfo = { ...nextInfo, drawX: nextInfo.drawX + this.canvas.width - slideOffset }
+        
+        this.drawImageWithTransform(currentImg, currentSlideInfo, currentPhoto)
+        this.drawImageWithTransform(nextImg, nextSlideInfo, nextPhoto)
         break
 
       case 'zoom':
         // 缩放效果
-        const currentScale = 1 + progress * 0.5
-        const nextScale = 0.5 + progress * 0.5
+        const currentTransitionScale = 1 + progress * 0.5
+        const nextTransitionScale = 0.5 + progress * 0.5
         
         // 当前图片放大
-        const currentScaledWidth = currentInfo.drawWidth * currentScale
-        const currentScaledHeight = currentInfo.drawHeight * currentScale
+        const currentScaledWidth = currentInfo.drawWidth * currentTransitionScale
+        const currentScaledHeight = currentInfo.drawHeight * currentTransitionScale
         const currentScaledX = currentInfo.drawX - (currentScaledWidth - currentInfo.drawWidth) / 2
         const currentScaledY = currentInfo.drawY - (currentScaledHeight - currentInfo.drawHeight) / 2
         
         this.ctx.globalAlpha = 1 - progress
-        this.ctx.drawImage(currentImg, currentScaledX, currentScaledY, currentScaledWidth, currentScaledHeight)
+        const currentZoomInfo = { 
+          drawWidth: currentScaledWidth, 
+          drawHeight: currentScaledHeight, 
+          drawX: currentScaledX, 
+          drawY: currentScaledY 
+        }
+        this.drawImageWithTransform(currentImg, currentZoomInfo, currentPhoto)
         
         // 下一张图片缩小进入
-        const nextScaledWidth = nextInfo.drawWidth * nextScale
-        const nextScaledHeight = nextInfo.drawHeight * nextScale
+        const nextScaledWidth = nextInfo.drawWidth * nextTransitionScale
+        const nextScaledHeight = nextInfo.drawHeight * nextTransitionScale
         const nextScaledX = nextInfo.drawX - (nextScaledWidth - nextInfo.drawWidth) / 2
         const nextScaledY = nextInfo.drawY - (nextScaledHeight - nextInfo.drawHeight) / 2
         
         this.ctx.globalAlpha = progress
-        this.ctx.drawImage(nextImg, nextScaledX, nextScaledY, nextScaledWidth, nextScaledHeight)
+        const nextZoomInfo = { 
+          drawWidth: nextScaledWidth, 
+          drawHeight: nextScaledHeight, 
+          drawX: nextScaledX, 
+          drawY: nextScaledY 
+        }
+        this.drawImageWithTransform(nextImg, nextZoomInfo, nextPhoto)
         
         this.ctx.globalAlpha = 1
         break
 
       case 'rotate':
-        // 旋转效果
+        // 旋转效果 - 转场旋转，用户变换已在editedUrl中预处理
         this.ctx.save()
         
         // 当前图片旋转消失
         this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2)
         this.ctx.rotate(progress * Math.PI / 4)
         this.ctx.globalAlpha = 1 - progress
+        
         this.ctx.drawImage(currentImg, 
           currentInfo.drawX - this.canvas.width / 2, 
           currentInfo.drawY - this.canvas.height / 2, 
@@ -563,6 +648,7 @@ export class VideoGenerator {
         this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2)
         this.ctx.rotate((1 - progress) * Math.PI / 4)
         this.ctx.globalAlpha = progress
+        
         this.ctx.drawImage(nextImg, 
           nextInfo.drawX - this.canvas.width / 2, 
           nextInfo.drawY - this.canvas.height / 2, 
@@ -575,10 +661,10 @@ export class VideoGenerator {
       default:
         // 默认淡入淡出
         this.ctx.globalAlpha = 1 - progress
-        this.ctx.drawImage(currentImg, currentInfo.drawX, currentInfo.drawY, currentInfo.drawWidth, currentInfo.drawHeight)
+        this.drawImageWithTransform(currentImg, currentInfo, currentPhoto)
         
         this.ctx.globalAlpha = progress
-        this.ctx.drawImage(nextImg, nextInfo.drawX, nextInfo.drawY, nextInfo.drawWidth, nextInfo.drawHeight)
+        this.drawImageWithTransform(nextImg, nextInfo, nextPhoto)
         
         this.ctx.globalAlpha = 1
         break

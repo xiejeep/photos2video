@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { Modal, Button, Space, Slider, Input, Typography, Row, Col, Divider, Tabs, Select, Checkbox, message } from 'antd'
+import { Modal, Button, Space, Slider, Input, Typography, Row, Col, Divider, Tabs, Select, Checkbox, message, Tag } from 'antd'
+import { useDeviceDetection } from '../utils/deviceDetector'
 import { 
   ZoomInOutlined, 
   ZoomOutOutlined, 
@@ -122,6 +123,9 @@ const ImageEditor = ({
   effects = {},
   onEffectsChange
 }) => {
+  // 设备检测
+  const { hasMouse, hasTouch, inputType } = useDeviceDetection()
+
   // 变换状态
   const [transform, setTransform] = useState({
     scale: 1,
@@ -319,7 +323,7 @@ const ImageEditor = ({
     setDraggedSticker(null)
   }, [])
 
-  // 缩放操作 - 立即应用
+  // 缩放操作 - 更新状态并自动保存
   const handleZoom = useCallback((delta) => {
     const newTransform = {
       ...transform,
@@ -327,19 +331,17 @@ const ImageEditor = ({
     }
     setTransform(newTransform)
     
-    // 立即应用
-    setTimeout(() => {
-      const result = {
-        transform: newTransform,
-        stickers: [],
-        applyScope: 'current',
-        selectedPhotos: []
-      }
-      onConfirm(result)
-    }, 100) // 短暂延迟确保状态更新
+    // 自动保存变换状态
+    const result = {
+      transform: newTransform,
+      stickers: [],
+      applyScope: 'current',
+      selectedPhotos: []
+    }
+    onConfirm(result)
   }, [transform, onConfirm])
 
-  // 旋转操作 - 立即应用
+  // 旋转操作 - 更新状态并自动保存
   const handleRotation = useCallback((delta) => {
     const newTransform = {
       ...transform,
@@ -347,19 +349,17 @@ const ImageEditor = ({
     }
     setTransform(newTransform)
     
-    // 立即应用
-    setTimeout(() => {
-      const result = {
-        transform: newTransform,
-        stickers: [],
-        applyScope: 'current',
-        selectedPhotos: []
-      }
-      onConfirm(result)
-    }, 100) // 短暂延迟确保状态更新
+    // 自动保存变换状态
+    const result = {
+      transform: newTransform,
+      stickers: [],
+      applyScope: 'current',
+      selectedPhotos: []
+    }
+    onConfirm(result)
   }, [transform, onConfirm])
 
-  // 重置位置 - 立即应用
+  // 重置位置 - 更新状态并自动保存
   const handleCenter = useCallback(() => {
     const newTransform = {
       ...transform,
@@ -368,16 +368,14 @@ const ImageEditor = ({
     }
     setTransform(newTransform)
     
-    // 立即应用
-    setTimeout(() => {
-      const result = {
-        transform: newTransform,
-        stickers: [],
-        applyScope: 'current',
-        selectedPhotos: []
-      }
-      onConfirm(result)
-    }, 100) // 短暂延迟确保状态更新
+    // 自动保存变换状态
+    const result = {
+      transform: newTransform,
+      stickers: [],
+      applyScope: 'current',
+      selectedPhotos: []
+    }
+    onConfirm(result)
   }, [transform, onConfirm])
 
   // 重置所有变换到原始状态
@@ -385,26 +383,37 @@ const ImageEditor = ({
     setTransform({ ...originalTransform.current })
   }, [])
 
-  // 鼠标按下开始拖拽
+  // 获取事件坐标（支持鼠标和触摸）
+  const getEventCoords = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    }
+    return { x: e.clientX, y: e.clientY }
+  }
+
+  // 鼠标/触摸按下开始拖拽
   const handleMouseDown = useCallback((e) => {
-    if (e.button !== 0) return // 只响应左键
+    if (e.type === 'mousedown' && e.button !== 0) return // 只响应左键
+    
+    const coords = getEventCoords(e)
     setIsDragging(true)
-    setDragStart({ x: e.clientX, y: e.clientY })
+    setDragStart(coords)
     setTransformStart({ x: transform.x, y: transform.y })
     e.preventDefault()
   }, [transform.x, transform.y])
 
-  // 鼠标移动拖拽
+  // 鼠标/触摸移动拖拽
   const handleMouseMove = useCallback((e) => {
     if (isDragging) {
-    const deltaX = e.clientX - dragStart.x
-    const deltaY = e.clientY - dragStart.y
-    
-    setTransform(prev => ({
-      ...prev,
-      x: transformStart.x + deltaX,
-      y: transformStart.y + deltaY
-    }))
+      const coords = getEventCoords(e)
+      const deltaX = coords.x - dragStart.x
+      const deltaY = coords.y - dragStart.y
+      
+      setTransform(prev => ({
+        ...prev,
+        x: transformStart.x + deltaX,
+        y: transformStart.y + deltaY
+      }))
     } else if (draggedSticker) {
       handleStickerDrag(e)
     }
@@ -413,22 +422,20 @@ const ImageEditor = ({
   // 鼠标抬起结束拖拽
   const handleMouseUp = useCallback(() => {
     if (isDragging) {
-      // 图片拖拽结束后立即应用
-      setTimeout(() => {
-        const result = {
-          transform,
-          stickers: [],
-          applyScope: 'current',
-          selectedPhotos: []
-        }
-        onConfirm(result)
-      }, 100)
+      // 拖拽结束后自动保存变换状态
+      const result = {
+        transform,
+        stickers: [],
+        applyScope: 'current',
+        selectedPhotos: []
+      }
+      onConfirm(result)
     }
     setIsDragging(false)
     handleStickerDragEnd()
   }, [isDragging, transform, onConfirm, handleStickerDragEnd])
 
-  // 滚轮缩放 - 添加防抖
+  // 滚轮缩放 - 防抖自动保存
   const wheelTimeoutRef = useRef(null)
   const handleWheel = useCallback((e) => {
     e.preventDefault()
@@ -437,7 +444,7 @@ const ImageEditor = ({
     
     setTransform(prev => ({ ...prev, scale: newScale }))
     
-    // 防抖处理，滚轮停止后才应用
+    // 防抖处理，滚轮停止后才保存
     if (wheelTimeoutRef.current) {
       clearTimeout(wheelTimeoutRef.current)
     }
@@ -452,15 +459,79 @@ const ImageEditor = ({
     }, 300) // 300ms防抖
   }, [transform, onConfirm])
 
-  // 添加全局事件监听
+  // 触摸缩放支持
+  const touchStartDistance = useRef(null)
+  const touchStartScale = useRef(null)
+  
+  const getTouchDistance = (touches) => {
+    if (touches.length < 2) return null
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      // 双指触摸，准备缩放
+      touchStartDistance.current = getTouchDistance(e.touches)
+      touchStartScale.current = transform.scale
+      e.preventDefault()
+    } else if (e.touches.length === 1) {
+      // 单指触摸，拖拽
+      handleMouseDown(e)
+    }
+  }, [transform.scale, handleMouseDown])
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2 && touchStartDistance.current && touchStartScale.current) {
+      // 双指缩放
+      const currentDistance = getTouchDistance(e.touches)
+      if (currentDistance) {
+        const scaleChange = currentDistance / touchStartDistance.current
+        const newScale = Math.max(0.1, Math.min(5, touchStartScale.current * scaleChange))
+        
+        setTransform(prev => ({ ...prev, scale: newScale }))
+        e.preventDefault()
+      }
+    } else {
+      // 单指拖拽
+      handleMouseMove(e)
+    }
+  }, [handleMouseMove])
+
+  const handleTouchEnd = useCallback((e) => {
+    if (touchStartDistance.current && touchStartScale.current) {
+      // 缩放结束，保存状态
+      const result = {
+        transform,
+        stickers: [],
+        applyScope: 'current',
+        selectedPhotos: []
+      }
+      onConfirm(result)
+      
+      touchStartDistance.current = null
+      touchStartScale.current = null
+    }
+    handleMouseUp()
+  }, [transform, onConfirm, handleMouseUp])
+
+  // 添加全局事件监听（支持鼠标和触摸）
   useEffect(() => {
     if (isDragging || draggedSticker) {
+      // 鼠标事件
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
+      
+      // 触摸事件
+      document.addEventListener('touchmove', handleMouseMove, { passive: false })
+      document.addEventListener('touchend', handleMouseUp)
       
       return () => {
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', handleMouseUp)
+        document.removeEventListener('touchmove', handleMouseMove)
+        document.removeEventListener('touchend', handleMouseUp)
       }
     }
   }, [isDragging, draggedSticker, handleMouseMove, handleMouseUp])
@@ -649,7 +720,17 @@ const ImageEditor = ({
           borderBottom: '1px solid #f0f0f0',
           paddingBottom: '12px'
         }}>
-          <Text strong style={{ fontSize: '16px' }}>图片编辑器</Text>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Text strong style={{ fontSize: '16px' }}>图片编辑器</Text>
+            <Tag 
+              color={inputType === 'mouse' ? 'blue' : inputType === 'touch' ? 'green' : 'orange'}
+              style={{ fontSize: '11px' }}
+            >
+              {inputType === 'mouse' ? '🖱️ 鼠标模式' : 
+               inputType === 'touch' ? '👆 触摸模式' : 
+               inputType === 'hybrid' ? '🖱️👆 混合模式' : '⌨️ 键盘模式'}
+            </Tag>
+          </div>
           <Button 
             icon={<CloseOutlined />} 
             onClick={onCancel}
@@ -675,9 +756,43 @@ const ImageEditor = ({
             width: '200px',
             flexShrink: 0
           }}>
-            <Text strong style={{ display: 'block', marginBottom: '16px', textAlign: 'center' }}>
+            <Text strong style={{ display: 'block', marginBottom: '8px', textAlign: 'center' }}>
               🎛️ 图片控制
             </Text>
+            <Text type="secondary" style={{ fontSize: '10px', display: 'block', marginBottom: '16px', textAlign: 'center' }}>
+              调整后自动保存，导出时生效
+            </Text>
+            
+            {/* 操作提示 - 根据设备类型显示 */}
+            <div style={{ 
+              fontSize: '9px', 
+              color: '#666', 
+              background: '#f0f0f0', 
+              padding: '6px', 
+              borderRadius: '4px', 
+              marginBottom: '12px',
+              lineHeight: '1.3'
+            }}>
+              {inputType === 'touch' ? (
+                <>
+                  👆 单指拖拽移动<br/>
+                  🤏 双指缩放大小<br/>
+                  📱 点击按钮操作
+                </>
+              ) : inputType === 'mouse' ? (
+                <>
+                  🖱️ 拖拽移动图片<br/>
+                  🎡 滚轮缩放大小<br/>
+                  🎯 点击按钮操作
+                </>
+              ) : (
+                <>
+                  🖱️👆 支持多种操作<br/>
+                  拖拽、滚轮、触摸<br/>
+                  均可使用
+                </>
+              )}
+            </div>
             
             {/* 缩放控制 */}
             <div style={{ marginBottom: '20px' }}>
@@ -710,7 +825,7 @@ const ImageEditor = ({
                       setTransform(newTransform)
                     }}
                     onAfterChange={(value) => {
-                      // 滑块拖拽结束后立即应用
+                      // 滑块拖拽结束后自动保存
                       const newTransform = { ...transform, scale: value }
                       const result = {
                         transform: newTransform,
@@ -761,7 +876,17 @@ const ImageEditor = ({
               icon={<UndoOutlined />}
               onClick={() => {
                 // 重置图片编辑状态到原始状态
-                setTransform({ ...originalTransform.current })
+                const resetTransform = { ...originalTransform.current }
+                setTransform(resetTransform)
+                
+                // 自动保存重置状态
+                const result = {
+                  transform: resetTransform,
+                  stickers: [],
+                  applyScope: 'current',
+                  selectedPhotos: []
+                }
+                onConfirm(result)
               }}
               size="small"
               style={{ width: '100%' }}
@@ -806,6 +931,9 @@ const ImageEditor = ({
                 alt="编辑中"
                 style={getImageStyle()}
                 onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 draggable={false}
               />
             )}
@@ -1078,7 +1206,11 @@ const ImageEditor = ({
                 onClick={() => {
                   // 切换到选中的图片
                   if (onConfirm) {
-                    onConfirm(currentPhotoId, null, null, {
+                    onConfirm({
+                      transform: null,
+                      stickers: [],
+                      applyScope: 'current',
+                      selectedPhotos: [],
                       action: 'switchPhoto',
                       photoId: photo.id
                     })

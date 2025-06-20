@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备检测测试 - 电子相册制作工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 16px;
+        }
+        
+        .device-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            border-left: 4px solid #1890ff;
+        }
+        
+        .info-card.warning {
+            border-left-color: #faad14;
+            background: #fffbf0;
+        }
+        
+        .info-card.success {
+            border-left-color: #52c41a;
+            background: #f6ffed;
+        }
+        
+        .info-card h3 {
+            margin: 0 0 8px 0;
+            color: #1890ff;
+            font-size: 14px;
+        }
+        
+        .info-card p {
+            margin: 0;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.4;
+        }
+        
+        .feature-test {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f0f8ff;
+            border-radius: 8px;
+            border: 1px dashed #1890ff;
+        }
+        
+        .test-area {
+            width: 100%;
+            height: 200px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            margin: 16px 0;
+            user-select: none;
+            touch-action: none;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .emoji {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        
+        .instructions {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 16px;
+            background: #1890ff;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .back-link:hover {
+            background: #40a9ff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 设备检测测试</h1>
+            <p>检测当前设备的输入能力和最佳交互方式</p>
+        </div>
+        
+        <div class="device-info" id="deviceInfo">
+            <!-- 设备信息将通过JavaScript填充 -->
+        </div>
+        
+        <div class="feature-test">
+            <h3>🎮 交互测试区域</h3>
+            <div class="test-area" id="testArea">
+                <div style="text-align: center;">
+                    <div class="emoji">🖱️👆</div>
+                    <div>尝试用您的设备进行交互</div>
+                    <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">
+                        鼠标悬停、点击、触摸或拖拽
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instructions" id="instructions">
+                <!-- 操作说明将根据设备类型动态生成 -->
+            </div>
+        </div>
+        
+        <a href="/" class="back-link">← 返回主应用</a>
+    </div>
+
+    <script>
+        // 设备检测逻辑
+        function detectDevice() {
+            const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+            const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+            const canHover = window.matchMedia('(hover: hover)').matches;
+            const anyPointer = window.matchMedia('(any-pointer: coarse)').matches;
+            
+            const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+            
+            let inputType = 'unknown';
+            let hasMouse = false;
+            
+            if (hasCoarsePointer && !hasFinePointer) {
+                inputType = 'touch';
+                hasMouse = false;
+            } else if (hasFinePointer && hasTouch) {
+                inputType = 'hybrid';
+                hasMouse = true;
+            } else if (hasFinePointer) {
+                inputType = 'mouse';
+                hasMouse = true;
+            } else {
+                inputType = isMobile ? 'touch' : 'keyboard';
+                hasMouse = !isMobile;
+            }
+            
+            return {
+                inputType,
+                hasMouse,
+                hasTouch,
+                isMobile,
+                mediaQueries: {
+                    finePointer: hasFinePointer,
+                    coarsePointer: hasCoarsePointer,
+                    canHover,
+                    anyPointer
+                },
+                userAgent,
+                touchPoints: navigator.maxTouchPoints || 0
+            };
+        }
+        
+        // 显示设备信息
+        function displayDeviceInfo() {
+            const device = detectDevice();
+            const container = document.getElementById('deviceInfo');
+            
+            const getCardClass = (type) => {
+                switch(type) {
+                    case 'touch': return 'success';
+                    case 'mouse': return '';
+                    case 'hybrid': return 'warning';
+                    default: return '';
+                }
+            };
+            
+            container.innerHTML = `
+                <div class="info-card ${getCardClass(device.inputType)}">
+                    <h3>🎯 输入类型</h3>
+                    <p><strong>${
+                        device.inputType === 'mouse' ? '🖱️ 鼠标输入' :
+                        device.inputType === 'touch' ? '👆 触摸输入' :
+                        device.inputType === 'hybrid' ? '🖱️👆 混合输入' :
+                        '⌨️ 键盘输入'
+                    }</strong></p>
+                    <p>${
+                        device.inputType === 'mouse' ? '适合精确操作的桌面环境' :
+                        device.inputType === 'touch' ? '专为触摸优化的移动设备' :
+                        device.inputType === 'hybrid' ? '支持多种输入方式的设备' :
+                        '主要使用键盘导航'
+                    }</p>
+                </div>
+                
+                <div class="info-card">
+                    <h3>📱 设备特性</h3>
+                    <p>鼠标支持: ${device.hasMouse ? '✅ 是' : '❌ 否'}</p>
+                    <p>触摸支持: ${device.hasTouch ? '✅ 是' : '❌ 否'}</p>
+                    <p>移动设备: ${device.isMobile ? '✅ 是' : '❌ 否'}</p>
+                    <p>触摸点数: ${device.touchPoints}</p>
+                </div>
+                
+                <div class="info-card">
+                    <h3>🔍 媒体查询</h3>
+                    <p>精确指针: ${device.mediaQueries.finePointer ? '✅' : '❌'}</p>
+                    <p>粗糙指针: ${device.mediaQueries.coarsePointer ? '✅' : '❌'}</p>
+                    <p>悬停支持: ${device.mediaQueries.canHover ? '✅' : '❌'}</p>
+                    <p>任意粗糙指针: ${device.mediaQueries.anyPointer ? '✅' : '❌'}</p>
+                </div>
+                
+                <div class="info-card">
+                    <h3>🌐 用户代理</h3>
+                    <p style="word-break: break-all; font-size: 11px;">${device.userAgent}</p>
+                </div>
+            `;
+            
+            // 更新操作说明
+            updateInstructions(device);
+        }
+        
+        // 更新操作说明
+        function updateInstructions(device) {
+            const instructions = document.getElementById('instructions');
+            
+            let content = '';
+            switch(device.inputType) {
+                case 'touch':
+                    content = `
+                        <strong>👆 触摸设备操作说明：</strong><br>
+                        • 在测试区域单指拖拽移动图片<br>
+                        • 双指收缩/放大进行缩放<br>
+                        • 左右滑动切换图片<br>
+                        • 点击按钮进行操作
+                    `;
+                    break;
+                case 'mouse':
+                    content = `
+                        <strong>🖱️ 鼠标设备操作说明：</strong><br>
+                        • 拖拽图片进行移动<br>
+                        • 滚轮进行缩放<br>
+                        • 点击按钮进行操作<br>
+                        • 悬停查看提示信息
+                    `;
+                    break;
+                case 'hybrid':
+                    content = `
+                        <strong>🖱️👆 混合设备操作说明：</strong><br>
+                        • 支持所有鼠标和触摸操作<br>
+                        • 拖拽或触摸移动图片<br>
+                        • 滚轮或双指缩放<br>
+                        • 点击或轻触按钮操作
+                    `;
+                    break;
+                default:
+                    content = `
+                        <strong>⌨️ 键盘导航说明：</strong><br>
+                        • 使用Tab键在界面元素间切换<br>
+                        • 使用空格或回车激活按钮<br>
+                        • 使用方向键进行导航
+                    `;
+            }
+            
+            instructions.innerHTML = content;
+        }
+        
+        // 测试区域交互
+        function setupTestArea() {
+            const testArea = document.getElementById('testArea');
+            let isDragging = false;
+            let startPos = { x: 0, y: 0 };
+            let currentPos = { x: 0, y: 0 };
+            
+            // 更新显示内容
+            function updateContent(action) {
+                const emoji = action === 'hover' ? '🖱️' : 
+                            action === 'touch' ? '👆' : 
+                            action === 'drag' ? '🤏' : '🎯';
+                
+                testArea.innerHTML = `
+                    <div style="text-align: center;">
+                        <div class="emoji">${emoji}</div>
+                        <div>检测到: ${action}</div>
+                        <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">
+                            位置: (${currentPos.x}, ${currentPos.y})
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 鼠标事件
+            testArea.addEventListener('mouseenter', () => updateContent('hover'));
+            testArea.addEventListener('mouseleave', () => updateContent('idle'));
+            testArea.addEventListener('mousemove', (e) => {
+                const rect = testArea.getBoundingClientRect();
+                currentPos.x = Math.round(e.clientX - rect.left);
+                currentPos.y = Math.round(e.clientY - rect.top);
+                if (!isDragging) updateContent('hover');
+            });
+            
+            testArea.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startPos.x = e.clientX;
+                startPos.y = e.clientY;
+                updateContent('drag');
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    updateContent('click');
+                }
+            });
+            
+            // 触摸事件
+            testArea.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = testArea.getBoundingClientRect();
+                currentPos.x = Math.round(touch.clientX - rect.left);
+                currentPos.y = Math.round(touch.clientY - rect.top);
+                
+                if (e.touches.length === 1) {
+                    updateContent('touch');
+                } else if (e.touches.length === 2) {
+                    updateContent('pinch');
+                }
+            });
+            
+            testArea.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = testArea.getBoundingClientRect();
+                currentPos.x = Math.round(touch.clientX - rect.left);
+                currentPos.y = Math.round(touch.clientY - rect.top);
+                updateContent('drag');
+            });
+            
+            testArea.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                updateContent('touch-end');
+            });
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            displayDeviceInfo();
+            setupTestArea();
+            
+            // 监听媒体查询变化
+            ['(pointer: fine)', '(pointer: coarse)', '(hover: hover)', '(any-pointer: coarse)'].forEach(query => {
+                const mq = window.matchMedia(query);
+                mq.addListener(() => {
+                    console.log('媒体查询变化:', query, mq.matches);
+                    displayDeviceInfo();
+                });
+            });
+        });
+    </script>
+</body>
+</html> 
